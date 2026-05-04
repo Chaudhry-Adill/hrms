@@ -1,0 +1,99 @@
+{
+ "actions": [],
+ "autoname": "field:sla_name",
+ "creation": "2026-05-02 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sla_name",
+  "first_response_hours",
+  "resolution_hours",
+  "column_break_4",
+  "business_hours_only",
+  "holiday_list"
+ ],
+ "fields": [
+  {
+   "fieldname": "sla_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "SLA Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "first_response_hours",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "First Response Hours"
+  },
+  {
+   "fieldname": "resolution_hours",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Resolution Hours"
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "business_hours_only",
+   "fieldtype": "Check",
+   "label": "Business Hours Only"
+  },
+  {
+   "fieldname": "holiday_list",
+   "fieldtype": "Link",
+   "label": "Holiday List",
+   "options": "Holiday List"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-02 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HR",
+ "name": "HR Ticket SLA",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "select": 1,
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "select": 1,
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "HR User",
+   "select": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
