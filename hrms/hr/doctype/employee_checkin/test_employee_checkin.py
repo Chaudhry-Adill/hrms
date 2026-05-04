@@ -546,6 +546,94 @@ class TestEmployeeCheckin(HRMSTestSuite):
 		# not allowed as distance (15004m) is not within checkin radius
 		self.assertRaises(CheckinRadiusExceededError, log.insert)
 
+	@HRMSTestSuite.change_settings("HR Settings", {"allow_multiple_shift_assignments": 1})
+	@HRMSTestSuite.change_settings("HR Settings", {"geofence_enforcement_mode": "Off"})
+	def test_geofence_off_mode_does_nothing(self):
+		employee = make_employee("test_geofence_off@example.com", company="_Test Company")
+		shift = setup_shift_type()
+		date = getdate()
+		location = make_shift_location("Loc Off", 24, 72)
+		make_shift_assignment(shift.name, employee, date, shift_location=location.name)
+
+		timestamp = datetime.combine(date, get_time("10:00:00"))
+		# Out-of-range checkin (1500m+) — should succeed because mode is Off
+		log = make_checkin(employee, timestamp, 24.01, 72.01)
+		self.assertIsNotNone(log.name)
+
+	@HRMSTestSuite.change_settings("HR Settings", {"allow_multiple_shift_assignments": 1})
+	@HRMSTestSuite.change_settings("HR Settings", {"geofence_enforcement_mode": "Warn"})
+	def test_geofence_warn_mode_does_not_throw(self):
+		employee = make_employee("test_geofence_warn@example.com", company="_Test Company")
+		shift = setup_shift_type()
+		date = getdate()
+		location = make_shift_location("Loc Warn", 24, 72)
+		make_shift_assignment(shift.name, employee, date, shift_location=location.name)
+
+		timestamp = datetime.combine(date, get_time("10:00:00"))
+		log = make_checkin(employee, timestamp, 24.01, 72.01)
+		self.assertIsNotNone(log.name)
+		# distance should be populated (custom field)
+		self.assertIsNotNone(log.get("geofence_distance_m"))
+		self.assertGreater(log.get("geofence_distance_m") or 0, 500)
+
+	@HRMSTestSuite.change_settings("HR Settings", {"allow_multiple_shift_assignments": 1})
+	@HRMSTestSuite.change_settings("HR Settings", {"geofence_enforcement_mode": "Block"})
+	def test_geofence_block_mode_throws(self):
+		employee = make_employee("test_geofence_block@example.com", company="_Test Company")
+		shift = setup_shift_type()
+		date = getdate()
+		location = make_shift_location("Loc Block", 24, 72)
+		make_shift_assignment(shift.name, employee, date, shift_location=location.name)
+
+		timestamp = datetime.combine(date, get_time("10:00:00"))
+		log = frappe.get_doc(
+			{
+				"doctype": "Employee Checkin",
+				"employee": employee,
+				"time": timestamp,
+				"latitude": 24.01,
+				"longitude": 72.01,
+			}
+		)
+		self.assertRaises(CheckinRadiusExceededError, log.insert)
+
+	@HRMSTestSuite.change_settings("HR Settings", {"allow_multiple_shift_assignments": 1})
+	@HRMSTestSuite.change_settings("HR Settings", {"geofence_enforcement_mode": "Block"})
+	def test_employee_geofence_override_wins(self):
+		employee_id = make_employee("test_geofence_override@example.com", company="_Test Company")
+		shift = setup_shift_type()
+		date = getdate()
+
+		# Fence A — employee override target (24, 72)
+		fence_a = make_shift_location("Fence A", 24, 72)
+		# Fence B — department override target (50, 50)
+		fence_b = make_shift_location("Fence B", 50, 50)
+
+		# Department-level override → Fence B
+		employee_doc = frappe.get_doc("Employee", employee_id)
+		department = employee_doc.department
+		if department:
+			dept_doc = frappe.get_doc("Department", department)
+			dept_doc.append(
+				"geofence_overrides",
+				{"shift_location": fence_b.name, "priority": 1, "enforce": 1},
+			)
+			dept_doc.save()
+
+		# Employee-level override → Fence A (should win)
+		employee_doc.append(
+			"geofence_overrides",
+			{"shift_location": fence_a.name, "priority": 10, "enforce": 1},
+		)
+		employee_doc.save()
+
+		make_shift_assignment(shift.name, employee_id, date)
+
+		# Within Fence A radius (~150m) — should succeed even though Fence B is far away
+		timestamp = datetime.combine(date, get_time("10:00:00"))
+		log = make_checkin(employee_id, timestamp, 24.001, 72.001)
+		self.assertIsNotNone(log.name)
+
 	def test_bulk_fetch_shift(self):
 		emp1 = make_employee("emp1@example.com", company="_Test Company")
 		emp2 = make_employee("emp2@example.com", company="_Test Company")

@@ -54,6 +54,26 @@
 					{{ locationStatus }}
 				</span>
 
+				<GeofenceStatusPill
+					v-if="geofenceMode !== 'Off' && primaryFence"
+					:distance-m="distanceM"
+					:radius-m="primaryFence.radius_m"
+					:mode="geofenceMode"
+				/>
+
+				<span
+					v-if="geofenceMode === 'Block' && distanceM !== null && !inRange"
+					class="text-xs font-medium text-red-600"
+				>
+					{{ __("You must be within the fence to check in") }}
+				</span>
+				<span
+					v-else-if="geofenceMode === 'Warn' && distanceM !== null && !inRange"
+					class="text-xs font-medium text-yellow-700"
+				>
+					{{ __("You are outside the geofence — check-in will be flagged") }}
+				</span>
+
 				<div class="rounded border-4 translate-z-0 block overflow-hidden w-full h-170">
 					<iframe
 						width="100%"
@@ -69,7 +89,36 @@
 				</div>
 			</template>
 
-			<Button :loading="checkins.insert.loading" variant="solid" class="w-full py-5 text-sm disabled:bg-gray-700" @click="submitLog(nextAction.action)">
+			<template v-if="faceMode === 'Required'">
+				<FaceCapture
+					:auto-start="true"
+					:require-liveness="faceRequireLiveness"
+					@captured="onFaceCaptured"
+				/>
+				<span
+					v-if="faceMatched"
+					class="text-xs font-medium text-green-700"
+				>
+					{{ __("Face verified") }}
+				</span>
+				<span
+					v-else-if="faceError"
+					class="text-xs font-medium text-red-600"
+				>
+					{{ faceError }}
+				</span>
+				<span v-else class="text-xs font-medium text-gray-500">
+					{{ __("Face verification required to continue") }}
+				</span>
+			</template>
+
+			<Button
+				:loading="checkins.insert.loading"
+				:disabled="submitDisabled"
+				variant="solid"
+				class="w-full py-5 text-sm disabled:bg-gray-700"
+				@click="submitLog(nextAction.action)"
+			>
 				{{ __("Confirm {0}", [nextAction.label]) }}
 			</Button>
 		</div>
@@ -83,6 +132,10 @@ import { IonModal, modalController } from "@ionic/vue"
 
 import { formatTimestamp } from "@/utils/formatters"
 import { settings } from "@/data/settings"
+import { resolveFence } from "@/data/attendance"
+import { faceConfig, verifyFace } from "@/data/face"
+import GeofenceStatusPill from "@/components/GeofenceStatusPill.vue"
+import FaceCapture from "@/components/FaceCapture.vue"
 
 const DOCTYPE = "Employee Checkin"
 
@@ -94,6 +147,7 @@ const checkinTimestamp = ref(null)
 const latitude = ref(0)
 const longitude = ref(0)
 const locationStatus = ref("")
+const distanceM = ref(null)
 
 const checkins = createListResource({
 	doctype: DOCTYPE,
@@ -128,6 +182,15 @@ function handleLocationSuccess(position) {
 		__("Latitude: {0}°", [Number(latitude.value).toFixed(5)]),
 		__("Longitude: {0}°", [Number(longitude.value).toFixed(5)]),
 	].join(", ")
+
+	if (primaryFence.value) {
+		distanceM.value = haversineMeters(
+			latitude.value,
+			longitude.value,
+			primaryFence.value.lat,
+			primaryFence.value.lng,
+		)
+	}
 }
 
 function handleLocationError(error) {
@@ -144,10 +207,92 @@ const fetchLocation = () => {
 	}
 }
 
+function haversineMeters(lat1, lng1, lat2, lng2) {
+	const r = 6371
+	const p = Math.PI / 180
+	const a =
+		0.5 -
+		Math.cos((lat2 - lat1) * p) / 2 +
+		(Math.cos(lat1 * p) *
+			Math.cos(lat2 * p) *
+			(1 - Math.cos((lng2 - lng1) * p))) /
+			2
+	return 2 * r * Math.asin(Math.sqrt(a)) * 1000
+}
+
+const geofenceMode = computed(() => resolveFence.data?.mode || "Off")
+const primaryFence = computed(() => {
+	const fences = resolveFence.data?.fences || []
+	return fences.length ? fences[0] : null
+})
+const inRange = computed(() => {
+	if (distanceM.value == null || !primaryFence.value) return false
+	return distanceM.value <= (primaryFence.value.radius_m || 0)
+})
+
+// ---------- Phase 4.2: face verification ---------------------------------
+const faceMode = computed(() => faceConfig.data?.mode || "Off")
+const faceRequireLiveness = computed(() => !!faceConfig.data?.require_liveness)
+const faceVerificationLog = ref(null)
+const faceMatched = ref(false)
+const faceError = ref("")
+
+const faceBlocksSubmit = computed(() => {
+	if (faceMode.value !== "Required") return false
+	return !faceMatched.value
+})
+
+const submitDisabled = computed(() => {
+	if (geofenceMode.value !== "Block") {
+		// Geofence does not block, but face mode might.
+		return faceBlocksSubmit.value
+	}
+	if (!primaryFence.value) return faceBlocksSubmit.value
+	if (distanceM.value == null) return true
+	return !inRange.value || faceBlocksSubmit.value
+})
+
+const onFaceCaptured = ({ descriptor, livenessPassed }) => {
+	faceError.value = ""
+	verifyFace.submit(
+		{
+			employee: employee.data.name,
+			descriptor_json: JSON.stringify(descriptor),
+			with_liveness: livenessPassed ? 1 : 0,
+		},
+		{
+			onSuccess(result) {
+				if (result?.matched) {
+					faceMatched.value = true
+					faceVerificationLog.value = result.log_name
+				} else {
+					faceMatched.value = false
+					faceError.value = __("Face did not match — please retry")
+				}
+			},
+			onError(err) {
+				faceError.value =
+					err?.messages?.[0] || err?.message || __("Face verification failed")
+			},
+		},
+	)
+}
+
 const handleEmployeeCheckin = () => {
 	checkinTimestamp.value = dayjs().format("YYYY-MM-DD HH:mm:ss")
 
+	// Reset face state per modal-open.
+	faceMatched.value = false
+	faceVerificationLog.value = null
+	faceError.value = ""
+	faceConfig.reload?.()
+
 	if (settings.data?.allow_geolocation_tracking) {
+		distanceM.value = null
+		resolveFence.fetch({
+			employee: employee.data.name,
+			timestamp: checkinTimestamp.value,
+		})
 		fetchLocation()
 	}
 }
@@ -155,14 +300,19 @@ const handleEmployeeCheckin = () => {
 const submitLog = (logType) => {
 	const actionLabel = logType === "IN" ? __("Check-in") : __("Check-out")
 
+	const payload = {
+		employee: employee.data.name,
+		log_type: logType,
+		time: checkinTimestamp.value,
+		latitude: latitude.value,
+		longitude: longitude.value,
+	}
+	if (faceVerificationLog.value) {
+		payload.face_verification_log = faceVerificationLog.value
+	}
+
 	checkins.insert.submit(
-		{
-			employee: employee.data.name,
-			log_type: logType,
-			time: checkinTimestamp.value,
-			latitude: latitude.value,
-			longitude: longitude.value,
-		},
+		payload,
 		{
 			onSuccess() {
 				modalController.dismiss()

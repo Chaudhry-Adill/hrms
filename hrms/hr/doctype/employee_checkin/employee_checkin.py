@@ -120,40 +120,200 @@ class EmployeeCheckin(Document):
 			self.overtime_type = shift_actual_timings.overtime_type or None
 
 	def validate_distance_from_shift_location(self):
-		if not frappe.db.get_single_value("HR Settings", "allow_geolocation_tracking"):
+		mode = frappe.db.get_single_value("HR Settings", "geofence_enforcement_mode") or "Off"
+
+		if mode == "Off" and not frappe.db.get_single_value("HR Settings", "allow_geolocation_tracking"):
 			return
 
 		if not (self.latitude or self.longitude):
+			if mode == "Off":
+				return
 			frappe.throw(_("Latitude and longitude values are required for checking in."))
 
-		assignment_locations = frappe.get_all(
-			"Shift Assignment",
-			filters={
-				"employee": self.employee,
-				"shift_type": self.shift,
-				"start_date": ["<=", self.time],
-				"shift_location": ["is", "set"],
-				"docstatus": 1,
-				"status": "Active",
-			},
-			or_filters=[["end_date", ">=", self.time], ["end_date", "is", "not set"]],
-			pluck="shift_location",
-		)
-		if not assignment_locations:
+		fences = resolve_geofences_for_checkin(self.employee, self.shift, self.time)
+
+		if not fences and mode == "Off":
+			# preserve legacy single-shift-location behavior when new mode unset
+			fences = _legacy_assignment_fences(self.employee, self.shift, self.time)
+
+		if not fences:
 			return
 
-		checkin_radius, latitude, longitude = frappe.db.get_value(
-			"Shift Location", assignment_locations[0], ["checkin_radius", "latitude", "longitude"]
-		)
-		if checkin_radius <= 0:
-			return
-
-		distance = get_distance_between_coordinates(latitude, longitude, self.latitude, self.longitude)
-		if distance > checkin_radius:
-			frappe.throw(
-				_("You must be within {0} meters of your shift location to check in.").format(checkin_radius),
-				exc=CheckinRadiusExceededError,
+		min_distance = None
+		nearest_radius = None
+		for fence in fences:
+			fence_lat, fence_lng, radius = fence["latitude"], fence["longitude"], fence["radius_m"]
+			if radius is None or radius <= 0:
+				continue
+			if not (self.latitude or self.longitude):
+				continue
+			distance = get_distance_between_coordinates(
+				fence_lat, fence_lng, self.latitude, self.longitude
 			)
+			if min_distance is None or distance < min_distance:
+				min_distance = distance
+				nearest_radius = radius
+
+		if min_distance is None:
+			return
+
+		if hasattr(self, "geofence_distance_m"):
+			self.geofence_distance_m = min_distance
+
+		if min_distance <= nearest_radius:
+			return
+
+		message = _("You must be within {0} meters of your shift location to check in.").format(
+			nearest_radius
+		)
+
+		if mode == "Warn":
+			frappe.msgprint(message, indicator="orange", title=_("Out of Geofence"))
+			return
+
+		if mode == "Block":
+			frappe.throw(message, exc=CheckinRadiusExceededError)
+			return
+
+		# mode == "Off" but legacy allow_geolocation_tracking is enabled — preserve old throw
+		frappe.throw(message, exc=CheckinRadiusExceededError)
+
+
+def resolve_geofences_for_checkin(
+	employee: str,
+	shift_assignment: str | None,
+	timestamp: str | datetime | None,
+) -> list[dict]:
+	"""Returns a list of fence dicts following the override resolution chain:
+
+	Employee.geofence_overrides → Department.geofence_overrides → Shift Assignment's
+	shift_location → Shift Type's default. Higher-priority enforcing overrides win.
+
+	Each item is a dict: {"name", "latitude", "longitude", "radius_m", "label",
+	"enforce", "priority"}.
+	"""
+	timestamp = get_datetime(timestamp) if timestamp else None
+
+	def _fence_row(shift_location, enforce=1, priority=1):
+		if not shift_location:
+			return None
+		row = frappe.db.get_value(
+			"Shift Location",
+			shift_location,
+			["name", "location_name", "checkin_radius", "latitude", "longitude"],
+			as_dict=True,
+		)
+		if not row:
+			return None
+		return {
+			"name": row.name,
+			"label": row.location_name or row.name,
+			"latitude": row.latitude,
+			"longitude": row.longitude,
+			"radius_m": row.checkin_radius,
+			"enforce": int(enforce or 0),
+			"priority": int(priority or 0),
+		}
+
+	def _from_overrides(parenttype, parent):
+		if not parent:
+			return []
+		try:
+			rows = frappe.get_all(
+				"Geofence Override",
+				filters={"parenttype": parenttype, "parent": parent},
+				fields=["shift_location", "priority", "enforce"],
+				order_by="priority desc",
+			)
+		except Exception:
+			return []
+		fences = []
+		for r in rows:
+			fence = _fence_row(r.shift_location, enforce=r.enforce, priority=r.priority)
+			if fence:
+				fences.append(fence)
+		return fences
+
+	# 1) Employee overrides
+	emp_fences = _from_overrides("Employee", employee)
+	enforcing = [f for f in emp_fences if f["enforce"]]
+	if enforcing:
+		return enforcing
+
+	# 2) Department overrides
+	department = frappe.db.get_value("Employee", employee, "department") if employee else None
+	dept_fences = _from_overrides("Department", department)
+	enforcing = [f for f in dept_fences if f["enforce"]]
+	if enforcing:
+		return enforcing
+
+	# 3) Shift Assignment's shift_location for this employee at this time
+	assignment_fences = _legacy_assignment_fences(employee, shift_assignment, timestamp)
+	if assignment_fences:
+		return assignment_fences
+
+	# 4) Shift Type's default location (best effort — Shift Type may not have one)
+	if shift_assignment:
+		default_location = frappe.db.get_value("Shift Type", shift_assignment, "shift_location")
+		fence = _fence_row(default_location)
+		if fence:
+			return [fence]
+
+	# Fallback: any non-enforcing employee/department fence still gives us pill data
+	return emp_fences or dept_fences
+
+
+def _legacy_assignment_fences(
+	employee: str,
+	shift: str | None,
+	timestamp: str | datetime | None,
+) -> list[dict]:
+	if not employee:
+		return []
+
+	filters = {
+		"employee": employee,
+		"shift_location": ["is", "set"],
+		"docstatus": 1,
+		"status": "Active",
+	}
+	if shift:
+		filters["shift_type"] = shift
+	if timestamp:
+		filters["start_date"] = ["<=", timestamp]
+
+	or_filters = None
+	if timestamp:
+		or_filters = [["end_date", ">=", timestamp], ["end_date", "is", "not set"]]
+
+	assignment_locations = frappe.get_all(
+		"Shift Assignment",
+		filters=filters,
+		or_filters=or_filters,
+		pluck="shift_location",
+	)
+	if not assignment_locations:
+		return []
+
+	row = frappe.db.get_value(
+		"Shift Location",
+		assignment_locations[0],
+		["name", "location_name", "checkin_radius", "latitude", "longitude"],
+		as_dict=True,
+	)
+	if not row:
+		return []
+	return [
+		{
+			"name": row.name,
+			"label": row.location_name or row.name,
+			"latitude": row.latitude,
+			"longitude": row.longitude,
+			"radius_m": row.checkin_radius,
+			"enforce": 1,
+			"priority": 0,
+		}
+	]
 
 
 @frappe.whitelist()

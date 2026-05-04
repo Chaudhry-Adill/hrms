@@ -20,6 +20,7 @@
   "latitude",
   "column_break_yqpi",
   "longitude",
+  "geofence_distance_m",
   "section_break_ksbo",
   "fetch_geolocation",
   "geolocation",
@@ -152,6 +153,14 @@
    "fieldtype": "Float",
    "label": "Longitude",
    "precision": "7",
+   "read_only": 1
+  },
+  {
+   "description": "Distance in metres from the resolved shift location at the time of check-in.",
+   "fieldname": "geofence_distance_m",
+   "fieldtype": "Float",
+   "label": "Geofence Distance (m)",
+   "precision": "2",
    "read_only": 1
   },
   {

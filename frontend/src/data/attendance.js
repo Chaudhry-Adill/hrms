@@ -106,3 +106,8 @@ export const teamAttendanceRequests = createResource({
 		return transformAttendanceRequests(data)
 	},
 })
+
+export const resolveFence = createResource({
+	url: "hrms.api.geofence.resolve_fence_for_employee",
+	cache: "hrms:resolve_fence",
+})
