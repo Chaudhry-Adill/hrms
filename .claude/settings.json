@@ -1,0 +1,68 @@
+{
+	"permissions": {
+		"allow": [
+			"Bash(bench:*)",
+			"Bash(ruff:*)",
+			"Bash(pre-commit:*)",
+			"Bash(git:*)",
+			"Bash(yarn:*)",
+			"Bash(node:*)",
+			"Bash(npx:*)",
+			"Bash(python:*)",
+			"Bash(semgrep:*)",
+			"Read(hrms/**)",
+			"Read(frontend/**)",
+			"Read(roster/**)",
+			"Read(semgrep/**)",
+			"Read(pyproject.toml)",
+			"Read(package*.json)",
+			"Read(.pre-commit-config.yaml)",
+			"Read(hrms/hooks.py)",
+			"Edit(hrms/**)",
+			"Edit(frontend/**)",
+			"Edit(roster/**)",
+			"Edit(semgrep/**)",
+			"Edit(pyproject.toml)",
+			"Edit(package*.json)",
+			"Edit(.pre-commit-config.yaml)",
+			"Edit(hrms/hooks.py)",
+			"Write(hrms/**)",
+			"Write(frontend/**)",
+			"Write(roster/**)",
+			"Write(semgrep/**)"
+		],
+		"ask": [
+			"Bash(rm:*)",
+			"Bash(mv:*)",
+			"Bash(drop:*)",
+			"Bash(curl:*)",
+			"Bash(wget:*)",
+			"WebFetch",
+			"WebSearch"
+		],
+		"deny": [
+			"Read(.env)",
+			"Read(**/.env)",
+			"Read(.env.local)",
+			"Bash(sudo:*)"
+		]
+	},
+	"hooks": {
+		"PostToolUse": [
+			{
+				"matcher": "Edit|Write",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "python .claude/hooks/post_edit_lint.py",
+						"timeout": 60
+					}
+				]
+			}
+		]
+	},
+	"env": {
+		"FRAPPE_SITE": "hrms.localhost",
+		"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+	}
+}
