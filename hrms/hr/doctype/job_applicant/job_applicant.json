@@ -37,7 +37,10 @@
   "currency",
   "column_break_18",
   "lower_range",
-  "upper_range"
+  "upper_range",
+  "tracking_section",
+  "tracking_token",
+  "stage_log"
  ],
  "fields": [
   {
@@ -208,6 +211,29 @@
    "fieldtype": "Button",
    "hidden": 1,
    "label": "Open Resume in New Tab"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "tracking_section",
+   "fieldtype": "Section Break",
+   "label": "Tracking"
+  },
+  {
+   "fieldname": "tracking_token",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Tracking Token",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "stage_log",
+   "fieldtype": "Table",
+   "label": "Stage Log",
+   "no_copy": 1,
+   "options": "Job Applicant Stage Log",
+   "read_only": 1
   }
  ],
  "icon": "fa fa-user",

@@ -1,0 +1,43 @@
+{% extends "templates/web.html" %}
+{% block title %}{{ _("Track Application") }}{% endblock title %}
+
+{% block header %}
+<h2 class="mt-0 mb-4">{{ _("Application Status") }}</h2>
+{% endblock header %}
+
+{% block page_content %}
+{% if error %}
+<div class="alert alert-warning" role="alert">{{ error }}</div>
+{% elif timeline_data %}
+<div class="card mb-4">
+	<div class="card-body">
+		<h4 class="card-title mb-2">{{ timeline_data.applicant_name }}</h4>
+		{% if timeline_data.job_title %}
+		<p class="text-muted mb-1">{{ _("Applied for") }}: <strong>{{ timeline_data.job_title }}</strong></p>
+		{% endif %}
+		<p class="text-muted mb-1">{{ _("Applied on") }}: {{ timeline_data.applied_on }}</p>
+		<p class="mb-0">
+			{{ _("Current Status") }}:
+			<span class="badge badge-primary">{{ _(timeline_data.current_status) }}</span>
+		</p>
+	</div>
+</div>
+
+<h5 class="mb-3">{{ _("Timeline") }}</h5>
+<ul class="list-group">
+	{% for entry in timeline_data.timeline %}
+	<li class="list-group-item">
+		<div class="d-flex justify-content-between">
+			<strong>{{ _(entry.stage) }}</strong>
+			<span class="text-muted">{{ entry.changed_on }}</span>
+		</div>
+		{% if entry.note %}
+		<small class="text-muted d-block mt-1">{{ entry.note }}</small>
+		{% endif %}
+	</li>
+	{% endfor %}
+</ul>
+{% else %}
+<div class="alert alert-info" role="alert">{{ _("Loading application status...") }}</div>
+{% endif %}
+{% endblock page_content %}

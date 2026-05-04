@@ -4,11 +4,13 @@
 # For license information, please see license.txt
 
 
+import secrets
+
 import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.model.naming import append_number_if_name_exists
-from frappe.utils import flt, validate_email_address
+from frappe.utils import flt, now_datetime, validate_email_address
 
 from hrms.hr.doctype.interview.interview import get_interviewers
 
@@ -26,6 +28,8 @@ class JobApplicant(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
+		from hrms.hr.doctype.job_applicant_stage_log.job_applicant_stage_log import JobApplicantStageLog
+
 		applicant_name: DF.Data
 		applicant_rating: DF.Rating
 		country: DF.Link | None
@@ -42,7 +46,9 @@ class JobApplicant(Document):
 		resume_link: DF.Data | None
 		source: DF.Link | None
 		source_name: DF.Link | None
+		stage_log: DF.Table[JobApplicantStageLog]
 		status: DF.Literal["Open", "Replied", "Shortlisted", "Rejected", "Hold", "Accepted"]
+		tracking_token: DF.Data | None
 		upper_range: DF.Currency
 	# end: auto-generated types
 
@@ -76,6 +82,53 @@ class JobApplicant(Document):
 				frappe.throw(
 					_("Cannot create a Job Applicant against a closed Job Opening"), title=_("Not Allowed")
 				)
+
+		if not self.get("tracking_token"):
+			self.tracking_token = secrets.token_urlsafe(32)
+
+	def after_insert(self):
+		# Seed the initial stage log row so the timeline always starts at the creation status.
+		self._append_stage_log(self.status, note=_("Application received"))
+
+	def on_update(self):
+		if self.has_value_changed("status"):
+			self._append_stage_log(self.status)
+			self._notify_applicant_status_change()
+
+	def _append_stage_log(self, stage: str, note: str | None = None) -> None:
+		if not stage:
+			return
+
+		log = frappe.new_doc("Job Applicant Stage Log")
+		log.parent = self.name
+		log.parenttype = self.doctype
+		log.parentfield = "stage_log"
+		log.stage = stage
+		log.changed_by = frappe.session.user
+		log.changed_on = now_datetime()
+		if note:
+			log.note = note
+		log.db_insert()
+
+	def _notify_applicant_status_change(self) -> None:
+		"""If the applicant has a linked User, push a PWA notification on stage transitions."""
+		if not self.email_id:
+			return
+
+		user = frappe.db.get_value("User", {"email": self.email_id, "enabled": 1}, "name")
+		if not user or user == frappe.session.user:
+			return
+
+		try:
+			notification = frappe.new_doc("PWA Notification")
+			notification.from_user = frappe.session.user
+			notification.to_user = user
+			notification.message = _("Your application status has been updated to {0}").format(self.status)
+			notification.reference_document_type = self.doctype
+			notification.reference_document_name = self.name
+			notification.insert(ignore_permissions=True)
+		except Exception:
+			frappe.log_error("Failed to send applicant PWA notification", "Job Applicant")
 
 	def set_status_for_employee_referral(self):
 		emp_ref = frappe.get_doc("Employee Referral", self.employee_referral)
