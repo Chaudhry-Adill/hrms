@@ -1,0 +1,180 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:device_name",
+ "creation": "2026-05-02 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "device_name",
+  "vendor",
+  "enabled",
+  "column_break_conn",
+  "host",
+  "port",
+  "password",
+  "section_break_lookup",
+  "employee_field_for_lookup",
+  "default_log_type",
+  "column_break_lookup",
+  "auto_attendance_skip",
+  "section_break_users",
+  "user_mappings",
+  "section_break_status",
+  "last_sync_at",
+  "last_log_id"
+ ],
+ "fields": [
+  {
+   "fieldname": "device_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Device Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "ZKTeco",
+   "fieldname": "vendor",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Vendor",
+   "options": "ZKTeco\nESSL",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "column_break_conn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "host",
+   "fieldtype": "Data",
+   "label": "Host / IP Address",
+   "reqd": 1
+  },
+  {
+   "default": "4370",
+   "fieldname": "port",
+   "fieldtype": "Int",
+   "label": "Port"
+  },
+  {
+   "fieldname": "password",
+   "fieldtype": "Password",
+   "label": "Device Password"
+  },
+  {
+   "fieldname": "section_break_lookup",
+   "fieldtype": "Section Break",
+   "label": "Lookup & Logging"
+  },
+  {
+   "default": "attendance_device_id",
+   "description": "Field on Employee used to match device user_id to an Employee record.",
+   "fieldname": "employee_field_for_lookup",
+   "fieldtype": "Select",
+   "label": "Employee Field for Lookup",
+   "options": "attendance_device_id\nemployee"
+  },
+  {
+   "default": "Auto",
+   "description": "Auto: derive log type from the device punch type. Otherwise force IN/OUT for every log.",
+   "fieldname": "default_log_type",
+   "fieldtype": "Select",
+   "label": "Default Log Type",
+   "options": "Auto\nIN\nOUT"
+  },
+  {
+   "fieldname": "column_break_lookup",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Skip auto attendance processing for check-ins ingested from this device.",
+   "fieldname": "auto_attendance_skip",
+   "fieldtype": "Check",
+   "label": "Skip Auto Attendance"
+  },
+  {
+   "fieldname": "section_break_users",
+   "fieldtype": "Section Break",
+   "label": "User Mappings"
+  },
+  {
+   "description": "Use only when device user_ids do not match Employee.attendance_device_id.",
+   "fieldname": "user_mappings",
+   "fieldtype": "Table",
+   "label": "User Mappings",
+   "options": "Biometric User Mapping"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_status",
+   "fieldtype": "Section Break",
+   "label": "Sync Status"
+  },
+  {
+   "fieldname": "last_sync_at",
+   "fieldtype": "Datetime",
+   "label": "Last Sync At",
+   "read_only": 1
+  },
+  {
+   "description": "Cursor: highest log id ingested so far. Reset to 0 to re-fetch.",
+   "fieldname": "last_log_id",
+   "fieldtype": "Int",
+   "label": "Last Log ID",
+   "read_only": 1
+  }
+ ],
+ "links": [
+  {
+   "group": "Sync Logs",
+   "link_doctype": "Biometric Sync Log",
+   "link_fieldname": "device"
+  }
+ ],
+ "modified": "2026-05-02 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HR",
+ "name": "Biometric Device",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
