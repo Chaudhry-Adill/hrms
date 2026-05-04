@@ -1,0 +1,51 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-05-02 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "week_index",
+  "shift_type",
+  "repeat_on_days"
+ ],
+ "fields": [
+  {
+   "description": "Week number within the rotation cycle (1..cycle_length_weeks).",
+   "fieldname": "week_index",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Week Index",
+   "reqd": 1
+  },
+  {
+   "fieldname": "shift_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Shift Type",
+   "options": "Shift Type"
+  },
+  {
+   "default": "Mon,Tue,Wed,Thu,Fri",
+   "description": "Comma-separated weekday codes (Mon,Tue,Wed,Thu,Fri,Sat,Sun) that this shift applies to.",
+   "fieldname": "repeat_on_days",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Repeat On Days"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-02 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HR",
+ "name": "Shift Rotation Pattern",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

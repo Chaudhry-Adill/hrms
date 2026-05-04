@@ -1,0 +1,160 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:SR-{YYYY}-{#####}",
+ "creation": "2026-05-02 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "rotation_name",
+  "status",
+  "column_break_main",
+  "start_date",
+  "cycle_length_weeks",
+  "holiday_list",
+  "patterns_section",
+  "patterns",
+  "groups_section",
+  "groups",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "rotation_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Rotation Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nActive\nInactive"
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "default": "4",
+   "description": "Length of the rotation cycle in weeks (1-4 supported).",
+   "fieldname": "cycle_length_weeks",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Cycle Length (Weeks)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "holiday_list",
+   "fieldtype": "Link",
+   "label": "Holiday List",
+   "options": "Holiday List"
+  },
+  {
+   "fieldname": "patterns_section",
+   "fieldtype": "Section Break",
+   "label": "Patterns"
+  },
+  {
+   "description": "One row per (week_index, shift_type) within the cycle.",
+   "fieldname": "patterns",
+   "fieldtype": "Table",
+   "label": "Patterns",
+   "options": "Shift Rotation Pattern",
+   "reqd": 1
+  },
+  {
+   "fieldname": "groups_section",
+   "fieldtype": "Section Break",
+   "label": "Groups"
+  },
+  {
+   "description": "Groups of employees rotating through the patterns.",
+   "fieldname": "groups",
+   "fieldtype": "Table",
+   "label": "Groups",
+   "options": "Shift Rotation Group",
+   "reqd": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Shift Rotation",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [
+  {
+   "link_doctype": "Shift Schedule Assignment",
+   "link_fieldname": "shift_rotation"
+  }
+ ],
+ "modified": "2026-05-02 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HR",
+ "name": "Shift Rotation",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Employee",
+   "share": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "rotation_name",
+ "track_changes": 1
+}

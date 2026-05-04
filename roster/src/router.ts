@@ -6,6 +6,11 @@ const routes = [
 		name: "Home",
 		component: () => import("./views/Home.vue"),
 	},
+	{
+		path: "/rotations",
+		name: "RotationEditor",
+		component: () => import("./views/RotationEditor.vue"),
+	},
 ];
 
 const router = createRouter({
