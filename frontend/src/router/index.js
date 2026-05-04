@@ -6,6 +6,10 @@ import leaveRoutes from "./leaves"
 import claimRoutes from "./claims"
 import employeeAdvanceRoutes from "./advances"
 import salarySlipRoutes from "./salary_slips"
+import offboardingRoutes from "./offboarding"
+import ticketRoutes from "./tickets"
+import assetRoutes from "./assets"
+import faceRoutes from "./face"
 
 const routes = [
 	{
@@ -77,6 +81,10 @@ const routes = [
 	...claimRoutes,
 	...employeeAdvanceRoutes,
 	...salarySlipRoutes,
+	...offboardingRoutes,
+	...ticketRoutes,
+	...assetRoutes,
+	...faceRoutes,
 ]
 
 const router = createRouter({

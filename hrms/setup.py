@@ -24,6 +24,10 @@ def after_install():
 	run_post_install_patches()
 	add_default_hr_permissions()
 
+	from hrms.setup_helpdesk import _create_helpdesk_seed_data
+
+	_create_helpdesk_seed_data()
+
 
 def before_uninstall():
 	delete_custom_fields(get_custom_fields())
@@ -155,6 +159,24 @@ def get_custom_fields():
 				"label": _("Expense Approver"),
 				"options": "Department Approver",
 				"insert_after": "leave_approvers",
+			},
+			{
+				"fieldname": "geofence_section",
+				"fieldtype": "Section Break",
+				"label": _("Geofencing"),
+				"insert_after": "expense_approvers",
+				"collapsible": 1,
+			},
+			{
+				"description": _(
+					"Override the shift location used for geofence checks for this department. "
+					"Higher priority rows win when multiple matches are found."
+				),
+				"fieldname": "geofence_overrides",
+				"fieldtype": "Table",
+				"label": _("Geofence Overrides"),
+				"options": "Geofence Override",
+				"insert_after": "geofence_section",
 			},
 		],
 		"Designation": [
@@ -288,6 +310,52 @@ def get_custom_fields():
 				"options": "Cost Center",
 				"insert_after": "salary_cb",
 			},
+			{
+				"collapsible": 1,
+				"fieldname": "geofence_section",
+				"fieldtype": "Section Break",
+				"label": _("Geofencing"),
+				"insert_after": "payroll_cost_center",
+			},
+			{
+				"description": _(
+					"Override the shift location used for geofence checks for this employee. "
+					"Resolves before department-level overrides; higher priority rows win."
+				),
+				"fieldname": "geofence_overrides",
+				"fieldtype": "Table",
+				"label": _("Geofence Overrides"),
+				"options": "Geofence Override",
+				"insert_after": "geofence_section",
+			},
+			{
+				"collapsible": 1,
+				"fieldname": "face_section",
+				"fieldtype": "Section Break",
+				"label": _("Face Detection"),
+				"insert_after": "geofence_overrides",
+			},
+			{
+				"fieldname": "face_enrollment_status",
+				"fieldtype": "Select",
+				"label": _("Face Enrollment Status"),
+				"options": "Not Enrolled\nPending\nEnrolled",
+				"default": "Not Enrolled",
+				"read_only": 1,
+				"insert_after": "face_section",
+			},
+			{
+				"fieldname": "face_descriptor_json",
+				"fieldtype": "Long Text",
+				"label": _("Face Descriptor"),
+				"description": _(
+					"JSON-encoded 128-d face-api.js descriptor. Encrypt at rest at the DB/host layer."
+				),
+				"hidden": 1,
+				"read_only": 1,
+				"no_copy": 1,
+				"insert_after": "face_enrollment_status",
+			},
 		],
 		"Project": [
 			{
@@ -327,6 +395,56 @@ def get_custom_fields():
 				"fieldtype": "Check",
 				"label": _("HR"),
 				"insert_after": "buying",
+			},
+		],
+		"Shift Schedule Assignment": [
+			{
+				"fieldname": "shift_rotation",
+				"label": _("Shift Rotation"),
+				"fieldtype": "Link",
+				"options": "Shift Rotation",
+				"insert_after": "shift_schedule",
+				"read_only": 1,
+				"hidden": 1,
+				"no_copy": 1,
+				"print_hide": 1,
+			},
+		],
+		"HR Settings": [
+			{
+				"fieldname": "face_verification_mode",
+				"fieldtype": "Select",
+				"label": _("Face Verification Mode"),
+				"options": "Off\nOptional\nRequired",
+				"default": "Off",
+				"insert_after": "geofence_enforcement_mode",
+			},
+			{
+				"depends_on": "eval:doc.face_verification_mode != 'Off'",
+				"fieldname": "face_min_confidence",
+				"fieldtype": "Float",
+				"label": _("Minimum Face Match Confidence"),
+				"default": 0.6,
+				"precision": "4",
+				"insert_after": "face_verification_mode",
+			},
+			{
+				"default": "0",
+				"depends_on": "eval:doc.face_verification_mode != 'Off'",
+				"fieldname": "face_require_liveness",
+				"fieldtype": "Check",
+				"label": _("Require Liveness Check"),
+				"insert_after": "face_min_confidence",
+			},
+		],
+		"Employee Checkin": [
+			{
+				"fieldname": "face_verification_log",
+				"fieldtype": "Link",
+				"label": _("Face Verification Log"),
+				"options": "Face Verification Log",
+				"read_only": 1,
+				"insert_after": "geofence_distance_m",
 			},
 		],
 	}
@@ -420,9 +538,113 @@ def make_fixtures():
 		{"doctype": "Offer Term", "offer_term": _("Incentives")},
 		# Email Account
 		{"doctype": "Email Account", "email_id": "jobs@example.com", "append_to": "Job Applicant"},
+		# Employee Separation Templates (Phase 1.3 — clearance + exit interview activities)
+		{
+			"doctype": "Employee Separation Template",
+			"title": _("Voluntary Separation"),
+			"activities": [
+				{
+					"activity_name": _("IT Clearance"),
+					"begin_on": 0,
+					"duration": 3,
+				},
+				{
+					"activity_name": _("Finance Clearance"),
+					"begin_on": 0,
+					"duration": 5,
+				},
+				{
+					"activity_name": _("HR Clearance"),
+					"begin_on": 1,
+					"duration": 3,
+				},
+				{
+					"activity_name": _("Asset Return"),
+					"begin_on": 0,
+					"duration": 2,
+					"requires_asset_return": 1,
+				},
+				{
+					"activity_name": _("Exit Interview"),
+					"begin_on": 5,
+					"duration": 1,
+					"is_exit_interview": 1,
+				},
+			],
+		},
+		{
+			"doctype": "Employee Separation Template",
+			"title": _("Involuntary Separation"),
+			"activities": [
+				{"activity_name": _("IT Clearance"), "begin_on": 0, "duration": 1},
+				{"activity_name": _("Finance Clearance"), "begin_on": 0, "duration": 2},
+				{"activity_name": _("HR Clearance"), "begin_on": 0, "duration": 2},
+				{
+					"activity_name": _("Asset Return"),
+					"begin_on": 0,
+					"duration": 1,
+					"requires_asset_return": 1,
+				},
+			],
+		},
+		{
+			"doctype": "Employee Separation Template",
+			"title": _("Retirement"),
+			"activities": [
+				{"activity_name": _("IT Clearance"), "begin_on": 0, "duration": 5},
+				{"activity_name": _("Finance Clearance"), "begin_on": 0, "duration": 7},
+				{"activity_name": _("HR Clearance"), "begin_on": 0, "duration": 5},
+				{
+					"activity_name": _("Asset Return"),
+					"begin_on": 0,
+					"duration": 3,
+					"requires_asset_return": 1,
+				},
+				{
+					"activity_name": _("Exit Interview"),
+					"begin_on": 5,
+					"duration": 1,
+					"is_exit_interview": 1,
+				},
+				{"activity_name": _("Farewell"), "begin_on": 10, "duration": 1},
+			],
+		},
 	]
 
 	make_records(records)
+	_create_recruitment_kanban_board()
+
+
+def _create_recruitment_kanban_board():
+	"""Create the default 'Job Applicant Kanban' board for the recruitment view."""
+	if frappe.db.exists("Kanban Board", "Job Applicant Kanban"):
+		return
+
+	stage_colors = {
+		"Open": "#5e64ff",
+		"Replied": "#ffa00a",
+		"Shortlisted": "#28a745",
+		"Hold": "#6c757d",
+		"Rejected": "#ff5858",
+		"Accepted": "#1976d2",
+	}
+
+	try:
+		board = frappe.new_doc("Kanban Board")
+		board.kanban_board_name = "Job Applicant Kanban"
+		board.reference_doctype = "Job Applicant"
+		board.field_name = "status"
+		board.private = 0
+		for stage, color in stage_colors.items():
+			board.append(
+				"columns",
+				{"column_name": stage, "status": "Active", "indicator": color},
+			)
+		board.insert(ignore_permissions=True, ignore_if_duplicate=True)
+	except Exception:
+		frappe.log_error(
+			"Failed to seed Job Applicant Kanban board", "HRMS Recruitment Setup"
+		)
 
 
 def setup_notifications():
@@ -659,6 +881,9 @@ def get_user_types_data():
 				"Employee Grievance": ["read", "write", "create", "delete"],
 				"Employee Referral": ["read", "write", "create", "delete"],
 				"Travel Request": ["read", "write", "create", "delete"],
+				"Employee Asset Request": ["read", "write", "create"],
+				"HR Ticket": ["read", "write", "create"],
+				"HR FAQ": ["read"],
 			},
 		}
 	}

@@ -82,6 +82,7 @@ website_generators = ["Job Opening"]
 website_route_rules = [
 	{"from_route": "/hrms/<path:app_path>", "to_route": "hrms"},
 	{"from_route": "/hr/<path:app_path>", "to_route": "roster"},
+	{"from_route": "/track-application/<token>", "to_route": "track-application"},
 ]
 # Jinja
 # ----------
@@ -216,6 +217,14 @@ doc_events = {
 	},
 	"Project": {"validate": "hrms.controllers.employee_boarding_controller.update_employee_boarding_status"},
 	"Task": {"on_update": "hrms.controllers.employee_boarding_controller.update_task"},
+	"Asset Movement": {
+		"on_submit": "hrms.api.assets._on_asset_movement_submit",
+	},
+	"Employee Checkin": {
+		"validate": [
+			"hrms.api.face.validate_face_for_checkin",
+		],
+	},
 }
 
 # Scheduled Tasks
@@ -227,6 +236,7 @@ scheduler_events = {
 	],
 	"hourly": [
 		"hrms.hr.doctype.daily_work_summary_group.daily_work_summary_group.trigger_emails",
+		"hrms.scheduler.ticket_sla.escalate_breached_slas",
 	],
 	"hourly_long": [
 		"hrms.hr.doctype.shift_type.shift_type.update_last_sync_of_checkin",
@@ -240,6 +250,7 @@ scheduler_events = {
 		"hrms.hr.doctype.interview.interview.send_daily_feedback_reminder",
 		"hrms.hr.doctype.shift_assignment.shift_assignment.mark_expired_shift_assignments_as_inactive",
 		"hrms.hr.doctype.job_opening.job_opening.close_expired_job_openings",
+		"hrms.hr.doctype.shift_rotation.shift_rotation.advance_rotations",
 	],
 	"daily_long": [
 		"hrms.hr.doctype.leave_ledger_entry.leave_ledger_entry.process_expired_allocation",
@@ -248,6 +259,11 @@ scheduler_events = {
 	],
 	"weekly": ["hrms.controllers.employee_reminders.send_reminders_in_advance_weekly"],
 	"monthly": ["hrms.controllers.employee_reminders.send_reminders_in_advance_monthly"],
+	"cron": {
+		"*/15 * * * *": [
+			"hrms.hr.biometric.scheduler.poll_all_devices",
+		],
+	},
 }
 
 advance_payment_payable_doctypes = ["Leave Encashment", "Gratuity", "Employee Advance"]

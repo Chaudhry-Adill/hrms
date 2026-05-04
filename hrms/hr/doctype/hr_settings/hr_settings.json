@@ -44,6 +44,7 @@
   "attendance_settings_section",
   "allow_employee_checkin_from_mobile_app",
   "allow_geolocation_tracking",
+  "geofence_enforcement_mode",
   "tenure_tab",
   "employee_exit_settings_section",
   "exit_questionnaire_web_form",
@@ -292,6 +293,15 @@
    "fieldname": "allow_geolocation_tracking",
    "fieldtype": "Check",
    "label": "Allow Geolocation Tracking"
+  },
+  {
+   "default": "Off",
+   "depends_on": "eval:doc.allow_geolocation_tracking",
+   "description": "Off: no fence checks. Warn: log distance and notify when out of range. Block: prevent check-in when out of range.",
+   "fieldname": "geofence_enforcement_mode",
+   "fieldtype": "Select",
+   "label": "Geofence Enforcement Mode",
+   "options": "Off\nWarn\nBlock"
   },
   {
    "fieldname": "attendance_settings_section",
