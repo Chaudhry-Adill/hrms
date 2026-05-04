@@ -16,12 +16,15 @@ class EmployeeBoardingActivity(Document):
 
 		activity_name: DF.Data
 		begin_on: DF.Int
+		clearance_department: DF.Link | None
 		description: DF.TextEditor | None
 		duration: DF.Int
+		is_exit_interview: DF.Check
 		parent: DF.Data
 		parentfield: DF.Data
 		parenttype: DF.Data
 		required_for_employee_creation: DF.Check
+		requires_asset_return: DF.Check
 		role: DF.Link | None
 		task: DF.Link | None
 		task_weight: DF.Float

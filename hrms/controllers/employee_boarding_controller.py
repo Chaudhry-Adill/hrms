@@ -95,9 +95,133 @@ class EmployeeBoardingController(Document):
 				if "Administrator" in users:
 					users.remove("Administrator")
 
+			# Offboarding extensions: route to clearance department, auto-create exit interview.
+			if self.doctype == "Employee Separation":
+				if activity.get("clearance_department"):
+					users = unique(users + self._get_department_head_users(activity.clearance_department))
+
+				if activity.get("is_exit_interview"):
+					self._create_exit_interview_for_activity(activity, task)
+
+				if activity.get("requires_asset_return"):
+					self._generate_asset_return_requests(activity)
+
 			# assign the task the users
 			if users:
 				self.assign_task_to_users(task, users)
+
+	def _get_department_head_users(self, department: str) -> list[str]:
+		"""Return enabled users responsible for the clearance department.
+
+		Resolution order:
+		1. Department's leader (Employee link) → User via Employee.user_id.
+		2. Users belonging to Employees with this department who hold a Department Head role.
+		3. Fall back to global Department Head role-holders so the task isn't dropped.
+		"""
+		users: list[str] = []
+
+		leader = frappe.db.get_value("Department", department, "leader") if department else None
+		if leader:
+			leader_user = frappe.db.get_value("Employee", leader, "user_id")
+			if leader_user:
+				users.append(leader_user)
+
+		dept_users = frappe.db.sql_list(
+			"""
+			SELECT DISTINCT e.user_id
+			FROM `tabEmployee` e
+			JOIN `tabHas Role` hr ON hr.parent = e.user_id
+			JOIN `tabUser` u ON u.name = e.user_id
+			WHERE e.department = %s
+				AND e.status = 'Active'
+				AND u.enabled = 1
+				AND hr.parenttype = 'User'
+				AND hr.role IN ('Department Head', 'HR Manager')
+			""",
+			department,
+		) if department else []
+		users = unique(users + dept_users)
+
+		if not users:
+			users = frappe.db.sql_list(
+				"""
+				SELECT DISTINCT has_role.parent
+				FROM `tabHas Role` has_role
+				JOIN `tabUser` u ON u.name = has_role.parent
+				WHERE has_role.parenttype = 'User'
+					AND u.enabled = 1
+					AND has_role.role = 'Department Head'
+				"""
+			)
+
+		if "Administrator" in users:
+			users.remove("Administrator")
+		return [u for u in users if u]
+
+	def _create_exit_interview_for_activity(self, _activity, _task):
+		"""Auto-create a draft Exit Interview tied to the separating employee."""
+		if not self.employee:
+			return
+
+		existing = frappe.db.exists(
+			"Exit Interview", {"employee": self.employee, "docstatus": ["<", 2]}
+		)
+		if existing:
+			return
+
+		ei = frappe.get_doc(
+			{
+				"doctype": "Exit Interview",
+				"employee": self.employee,
+				"company": self.company,
+				"status": "Pending",
+			}
+		)
+		ei.insert(ignore_permissions=True, ignore_mandatory=True)
+
+	def _generate_asset_return_requests(self, activity):
+		"""Generate asset-return requests for all current allocations.
+
+		Phase 3 integration: queries every active `Employee Asset Allocation` for
+		the separating employee and creates one return-type `Employee Asset Request`
+		per row. Skips if `Employee Asset Request` doctype isn't installed (soft
+		fallback for installs that pre-date Phase 3).
+		"""
+		if not frappe.db.exists("DocType", "Employee Asset Request"):
+			return
+
+		if not self.employee:
+			return
+
+		due_date = None
+		# Prefer the activity's task due date if set; else fall back to today + 7 in the API.
+		if activity.get("task"):
+			due_date = frappe.db.get_value("Task", activity.task, "exp_end_date")
+
+		try:
+			from hrms.api.assets import generate_return_requests_for_employee
+
+			created = generate_return_requests_for_employee(
+				self.employee,
+				due_date=due_date,
+				separation=self.name,
+			) or []
+
+			if created:
+				activity.db_set(
+					"description",
+					(activity.description or "")
+					+ "\n\n"
+					+ _("Generated {0} asset return request(s): {1}").format(
+						len(created), ", ".join(created)
+					),
+				)
+		except ImportError:
+			# Phase 3 module not yet wired up — leave the breadcrumb on the activity.
+			activity.db_set(
+				"description",
+				(activity.description or "") + "\n\n[Asset return pending Phase 3]",
+			)
 
 	def get_holiday_list(self):
 		if self.doctype == "Employee Separation":

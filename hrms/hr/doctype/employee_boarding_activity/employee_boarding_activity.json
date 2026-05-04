@@ -14,6 +14,10 @@
   "task",
   "task_weight",
   "required_for_employee_creation",
+  "offboarding_section",
+  "clearance_department",
+  "is_exit_interview",
+  "requires_asset_return",
   "section_break_6",
   "description"
  ],
@@ -67,6 +71,36 @@
    "fieldname": "required_for_employee_creation",
    "fieldtype": "Check",
    "label": "Required for Employee Creation"
+  },
+  {
+   "depends_on": "eval:['Employee Separation', 'Employee Separation Template'].includes(doc.parenttype)",
+   "fieldname": "offboarding_section",
+   "fieldtype": "Section Break",
+   "label": "Offboarding"
+  },
+  {
+   "depends_on": "eval:['Employee Separation', 'Employee Separation Template'].includes(doc.parenttype)",
+   "description": "Routes the task to users with the Department Head role for the selected department.",
+   "fieldname": "clearance_department",
+   "fieldtype": "Link",
+   "label": "Clearance Department",
+   "options": "Department"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:['Employee Separation', 'Employee Separation Template'].includes(doc.parenttype)",
+   "description": "Auto-creates and links an Exit Interview record when this activity runs.",
+   "fieldname": "is_exit_interview",
+   "fieldtype": "Check",
+   "label": "Is Exit Interview"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:['Employee Separation', 'Employee Separation Template'].includes(doc.parenttype)",
+   "description": "Generates an Asset Return Request per outstanding allocation when this activity runs (requires Asset Management module).",
+   "fieldname": "requires_asset_return",
+   "fieldtype": "Check",
+   "label": "Requires Asset Return"
   },
   {
    "fieldname": "section_break_6",
