@@ -251,6 +251,7 @@ scheduler_events = {
 		"hrms.hr.doctype.shift_assignment.shift_assignment.mark_expired_shift_assignments_as_inactive",
 		"hrms.hr.doctype.job_opening.job_opening.close_expired_job_openings",
 		"hrms.hr.doctype.shift_rotation.shift_rotation.advance_rotations",
+		"hrms.api.face.cleanup_skipped_face_logs",
 	],
 	"daily_long": [
 		"hrms.hr.doctype.leave_ledger_entry.leave_ledger_entry.process_expired_allocation",

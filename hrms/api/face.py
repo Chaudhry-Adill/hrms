@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 
 import frappe
 from frappe import _
+from frappe.utils.data import cint
 
 if TYPE_CHECKING:
 	from hrms.hr.doctype.employee_checkin.employee_checkin import EmployeeCheckin
@@ -112,6 +113,7 @@ def enroll(employee: str, descriptor_json: str) -> dict:
 
 
 @frappe.whitelist()
+@frappe.rate_limiter.rate_limit(key="employee", limit=10, seconds=60)
 def verify(employee: str, descriptor_json: str, with_liveness: bool | int = False) -> dict:
 	"""Compare a probe descriptor against the stored enrollment.
 
@@ -123,10 +125,19 @@ def verify(employee: str, descriptor_json: str, with_liveness: bool | int = Fals
 
 	_check_self_or_hr(employee)
 
+	# Check consecutive failure lockout BEFORE expensive matching logic.
+	fail_key = f"face_verify_fail:{employee}"
+	fail_count = cint(frappe.cache.get_value(fail_key) or 0)
+	if fail_count >= 5:
+		frappe.throw(
+			_("Face verification locked after 5 consecutive failures. Contact HR to unlock."),
+			frappe.ValidationError,
+		)
+
 	probe = _parse_descriptor(descriptor_json)
 
 	stored_json = frappe.db.get_value("Employee", employee, "face_descriptor_json")
-	min_confidence = frappe.db.get_single_value("HR Settings", "face_min_confidence") or 0.6
+	min_confidence = frappe.db.get_single_value("HR Settings", "face_min_confidence") or 0.7
 	require_liveness = frappe.db.get_single_value("HR Settings", "face_require_liveness") or 0
 
 	# Coerce flag: frappe sometimes passes "0"/"1"/"true" strings via REST.
@@ -143,6 +154,13 @@ def verify(employee: str, descriptor_json: str, with_liveness: bool | int = Fals
 				matched = False
 		except frappe.ValidationError:
 			matched = False
+
+	# Update lockout counter on failure; clear on success.
+	if matched:
+		frappe.cache.delete_value(fail_key)
+	else:
+		new_count = fail_count + 1
+		frappe.cache.set_value(fail_key, new_count, expires_in_sec=3600)
 
 	log = frappe.get_doc(
 		{
@@ -187,7 +205,7 @@ def get_config() -> dict:
 	"""
 	return {
 		"mode": frappe.db.get_single_value("HR Settings", "face_verification_mode") or "Off",
-		"min_confidence": float(frappe.db.get_single_value("HR Settings", "face_min_confidence") or 0.6),
+		"min_confidence": float(frappe.db.get_single_value("HR Settings", "face_min_confidence") or 0.7),
 		"require_liveness": bool(frappe.db.get_single_value("HR Settings", "face_require_liveness") or 0),
 	}
 
@@ -226,3 +244,25 @@ def validate_face_for_checkin(doc: "EmployeeCheckin", method: str | None = None)
 
 	if log.match_result != "Pass":
 		frappe.throw(_("Face verification did not pass — please retry."))
+
+
+# ---------------------------------------------------------------------------
+# Scheduled job — registered in hooks.py under scheduler_events.daily
+# ---------------------------------------------------------------------------
+
+
+def cleanup_skipped_face_logs() -> None:
+	"""Daily scheduled job: purge Face Verification Log rows with
+	match_result == 'Skipped' older than 30 days.
+	"""
+	threshold = frappe.utils.add_days(frappe.utils.today(), -30)
+	rows = frappe.db.get_all(
+		"Face Verification Log",
+		filters={
+			"match_result": "Skipped",
+			"timestamp": ("<", threshold),
+		},
+		pluck="name",
+	)
+	for name in rows:
+		frappe.delete_doc("Face Verification Log", name, ignore_permissions=True, force=True)
