@@ -424,7 +424,7 @@ def get_custom_fields():
 				"fieldname": "face_min_confidence",
 				"fieldtype": "Float",
 				"label": _("Minimum Face Match Confidence"),
-				"default": 0.6,
+				"default": 0.7,
 				"precision": "4",
 				"insert_after": "face_verification_mode",
 			},

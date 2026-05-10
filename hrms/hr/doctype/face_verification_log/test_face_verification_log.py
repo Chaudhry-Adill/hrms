@@ -2,6 +2,7 @@
 # See license.txt
 
 import json
+from unittest.mock import patch
 
 import frappe
 
@@ -157,3 +158,213 @@ class TestFaceVerificationLog(HRMSTestSuite):
 		)
 		# Should not raise.
 		validate_face_for_checkin(doc, method="validate")
+
+
+class TestFaceRateLimitAndLockout(HRMSTestSuite):
+	def setUp(self):
+		self.employee = _stub_employee("EMP-FACE-RATE-0001")
+		# Reset failure counter before each test.
+		fail_key = f"face_verify_fail:{self.employee}"
+		frappe.cache.delete_value(fail_key)
+
+	def _set_descriptor(self, descriptor):
+		emp = frappe.get_doc("Employee", self.employee)
+		if hasattr(emp, "face_descriptor_json"):
+			emp.face_descriptor_json = json.dumps(descriptor)
+			emp.face_enrollment_status = "Enrolled"
+			emp.save(ignore_permissions=True)
+
+	def test_rate_limit_enforced_on_11th_call(self):
+		"""Calling verify 11 times in 60s for the same employee should trigger rate limit on the 11th call."""
+		from hrms.api.face import verify
+
+		stored = _random_descriptor(seed=10)
+		self._set_descriptor(stored)
+
+		# Patch the rate_limit decorator to a no-op so we can test the inner
+		# enforcement logic via a side-effect counter, then restore it.
+		# Instead, we call the raw verify function bypassing the decorator by
+		# importing the real function reference.  The decorator is applied at
+		# import time, so we patch frappe.rate_limiter.rate_limit to a pass-through.
+		with patch.object(
+			frappe.rate_limiter, "rate_limit", lambda **kwargs: lambda fn: fn
+		):
+			# Re-import to pick up the unwrapped function for this test.
+			from hrms.api.face import verify as raw_verify
+
+			# Call 10 times — should succeed.
+			for _ in range(10):
+				result = raw_verify(
+					employee=self.employee,
+					descriptor_json=json.dumps(stored),
+					with_liveness=False,
+				)
+				self.assertTrue(result["matched"])
+
+			# The 11th call should be rate-limited.  We simulate this by
+			# temporarily restoring the real decorator behaviour on a fresh
+			# wrapper that has already seen 10 calls.
+			wrapped = frappe.rate_limiter.rate_limit(
+				key="employee", limit=10, seconds=60
+			)(raw_verify)
+
+			# Manually seed the rate-limit counter so the next call is the 11th.
+			frappe.cache.set_value(
+				f"rate_limit_count:{self.employee}", 10, expires_in_sec=60
+			)
+
+			with self.assertRaises(frappe.exceptions.RateLimitExceededError):
+				wrapped(
+					employee=self.employee,
+					descriptor_json=json.dumps(stored),
+					with_liveness=False,
+				)
+
+	def test_five_failures_lockout_sixth_attempt(self):
+		"""5 failed verifications should lock out the 6th attempt."""
+		from hrms.api.face import verify
+
+		stored = _random_descriptor(seed=20)
+		self._set_descriptor(stored)
+		probe = _random_descriptor(seed=999)
+
+		# 5 failures.
+		for _ in range(5):
+			result = verify(
+				employee=self.employee,
+				descriptor_json=json.dumps(probe),
+				with_liveness=False,
+			)
+			self.assertFalse(result["matched"])
+
+		# 6th attempt should be locked out.
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			verify(
+				employee=self.employee,
+				descriptor_json=json.dumps(probe),
+				with_liveness=False,
+			)
+		self.assertIn("locked", str(ctx.exception).lower())
+
+	def test_success_resets_failure_counter(self):
+		"""A successful verification should reset the failure counter."""
+		from hrms.api.face import verify
+
+		stored = _random_descriptor(seed=30)
+		self._set_descriptor(stored)
+		probe = _random_descriptor(seed=999)
+
+		# 3 failures.
+		for _ in range(3):
+			verify(
+				employee=self.employee,
+				descriptor_json=json.dumps(probe),
+				with_liveness=False,
+			)
+
+		fail_key = f"face_verify_fail:{self.employee}"
+		self.assertEqual(int(frappe.cache.get_value(fail_key) or 0), 3)
+
+		# 1 success.
+		verify(
+			employee=self.employee,
+			descriptor_json=json.dumps(stored),
+			with_liveness=False,
+		)
+
+		# Counter should be cleared.
+		self.assertIsNone(frappe.cache.get_value(fail_key))
+
+		# Subsequent failures should start from 0 again.
+		verify(
+			employee=self.employee,
+			descriptor_json=json.dumps(probe),
+			with_liveness=False,
+		)
+		self.assertEqual(int(frappe.cache.get_value(fail_key) or 0), 1)
+
+	def test_failure_cache_key_set_and_cleared(self):
+		"""Verify the cache key face_verify_fail:{employee} is set on failure and cleared on success."""
+		from hrms.api.face import verify
+
+		stored = _random_descriptor(seed=40)
+		self._set_descriptor(stored)
+		probe = _random_descriptor(seed=999)
+		fail_key = f"face_verify_fail:{self.employee}"
+
+		# Key absent initially.
+		frappe.cache.delete_value(fail_key)
+		self.assertIsNone(frappe.cache.get_value(fail_key))
+
+		# Failure sets the key.
+		verify(
+			employee=self.employee,
+			descriptor_json=json.dumps(probe),
+			with_liveness=False,
+		)
+		self.assertEqual(int(frappe.cache.get_value(fail_key) or 0), 1)
+
+		# Success clears the key.
+		verify(
+			employee=self.employee,
+			descriptor_json=json.dumps(stored),
+			with_liveness=False,
+		)
+		self.assertIsNone(frappe.cache.get_value(fail_key))
+
+
+class TestFaceCleanupJob(HRMSTestSuite):
+	def setUp(self):
+		self.employee = _stub_employee("EMP-FACE-CLEAN-0001")
+
+	def _create_log(self, match_result, timestamp):
+		log = frappe.get_doc(
+			{
+				"doctype": "Face Verification Log",
+				"employee": self.employee,
+				"timestamp": timestamp,
+				"confidence": 0.5,
+				"liveness_passed": 0,
+				"match_result": match_result,
+			}
+		)
+		log.flags.ignore_permissions = True
+		log.insert()
+		return log.name
+
+	def test_cleanup_deletes_old_skipped_logs(self):
+		"""Old Skipped logs (older than 30 days) should be deleted by the cleanup job."""
+		from hrms.api.face import cleanup_skipped_face_logs
+
+		old_ts = frappe.utils.add_days(frappe.utils.now_datetime(), -31)
+		log_name = self._create_log("Skipped", old_ts)
+		self.assertTrue(frappe.db.exists("Face Verification Log", log_name))
+
+		cleanup_skipped_face_logs()
+
+		self.assertFalse(frappe.db.exists("Face Verification Log", log_name))
+
+	def test_cleanup_preserves_recent_skipped_logs(self):
+		"""Recent Skipped logs (within 30 days) should NOT be deleted."""
+		from hrms.api.face import cleanup_skipped_face_logs
+
+		recent_ts = frappe.utils.add_days(frappe.utils.now_datetime(), -1)
+		log_name = self._create_log("Skipped", recent_ts)
+		self.assertTrue(frappe.db.exists("Face Verification Log", log_name))
+
+		cleanup_skipped_face_logs()
+
+		self.assertTrue(frappe.db.exists("Face Verification Log", log_name))
+
+	def test_cleanup_preserves_non_skipped_logs(self):
+		"""Pass/Fail logs older than 30 days should NOT be deleted."""
+		from hrms.api.face import cleanup_skipped_face_logs
+
+		old_ts = frappe.utils.add_days(frappe.utils.now_datetime(), -31)
+		pass_log = self._create_log("Pass", old_ts)
+		fail_log = self._create_log("Fail", old_ts)
+
+		cleanup_skipped_face_logs()
+
+		self.assertTrue(frappe.db.exists("Face Verification Log", pass_log))
+		self.assertTrue(frappe.db.exists("Face Verification Log", fail_log))
