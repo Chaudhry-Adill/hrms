@@ -65,13 +65,13 @@
 					v-if="geofenceMode === 'Block' && distanceM !== null && !inRange"
 					class="text-xs font-medium text-red-600"
 				>
-					{{ __("You must be within the fence to check in") }}
+					{{ __("You must be within the fence to check in (enforced server-side)") }}
 				</span>
 				<span
 					v-else-if="geofenceMode === 'Warn' && distanceM !== null && !inRange"
 					class="text-xs font-medium text-yellow-700"
 				>
-					{{ __("You are outside the geofence — check-in will be flagged") }}
+					{{ __("You are outside the geofence — check-in will be flagged server-side") }}
 				</span>
 
 				<div class="rounded border-4 translate-z-0 block overflow-hidden w-full h-170">

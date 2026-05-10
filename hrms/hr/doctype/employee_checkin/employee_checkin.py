@@ -167,13 +167,32 @@ class EmployeeCheckin(Document):
 			nearest_radius
 		)
 
+		# Audit log every rejection (security & compliance).
+		frappe.get_doc(
+			{
+				"doctype": "Error Log",
+				"method": "hrms.hr.doctype.employee_checkin.employee_checkin.validate_distance_from_shift_location",
+				"error": frappe.as_json(
+					{
+						"employee": self.employee,
+						"checkin_time": str(self.time),
+						"latitude": self.latitude,
+						"longitude": self.longitude,
+						"min_distance_m": min_distance,
+						"allowed_radius_m": nearest_radius,
+						"mode": mode,
+						"message": message,
+					}
+				),
+			}
+		).insert(ignore_permissions=True)
+
 		if mode == "Warn":
 			frappe.msgprint(message, indicator="orange", title=_("Out of Geofence"))
 			return
 
 		if mode == "Block":
 			frappe.throw(message, exc=CheckinRadiusExceededError)
-			return
 
 		# mode == "Off" but legacy allow_geolocation_tracking is enabled — preserve old throw
 		frappe.throw(message, exc=CheckinRadiusExceededError)

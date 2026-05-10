@@ -1011,3 +1011,58 @@ def create_leave_allocation(employee, leave_type, from_date, to_date, new_leaves
 	).submit()
 
 	return leave_allocation
+
+
+class TestGeofenceServerSideEnforcement(HRMSTestSuite):
+	def setUp(self):
+		frappe.db.set_single_value("HR Settings", "geofence_enforcement_mode", "Block")
+		frappe.db.set_single_value("HR Settings", "allow_geolocation_tracking", 1)
+
+	def test_block_mode_rejects_out_of_range_checkin(self):
+		employee = make_employee("test_geofence_block@example.com", company="_Test Company")
+		shift_location = make_shift_location("Test Office", 12.9716, 77.5946, 100)
+		shift_type = setup_shift_type(shift_type="Test Shift Geo")
+		date = getdate()
+		make_shift_assignment(shift_type.name, employee, date)
+
+		# Coordinates ~11km away from office
+		with self.assertRaises(CheckinRadiusExceededError):
+			make_checkin(employee, latitude=12.9352, longitude=77.6245)
+
+	def test_audit_log_created_on_rejection(self):
+		employee = make_employee("test_geofence_audit@example.com", company="_Test Company")
+		shift_location = make_shift_location("Test Office 2", 12.9716, 77.5946, 100)
+		shift_type = setup_shift_type(shift_type="Test Shift Geo 2")
+		date = getdate()
+		make_shift_assignment(shift_type.name, employee, date)
+
+		count_before = frappe.db.count("Error Log", {"method": "hrms.hr.doctype.employee_checkin.employee_checkin.validate_distance_from_shift_location"})
+
+		try:
+			make_checkin(employee, latitude=12.9352, longitude=77.6245)
+		except CheckinRadiusExceededError:
+			pass
+
+		count_after = frappe.db.count("Error Log", {"method": "hrms.hr.doctype.employee_checkin.employee_checkin.validate_distance_from_shift_location"})
+		self.assertEqual(count_after, count_before + 1)
+
+	def test_warn_mode_allows_checkin(self):
+		frappe.db.set_single_value("HR Settings", "geofence_enforcement_mode", "Warn")
+		employee = make_employee("test_geofence_warn@example.com", company="_Test Company")
+		shift_location = make_shift_location("Test Office 3", 12.9716, 77.5946, 100)
+		shift_type = setup_shift_type(shift_type="Test Shift Geo 3")
+		date = getdate()
+		make_shift_assignment(shift_type.name, employee, date)
+
+		# Should not raise in Warn mode
+		checkin = make_checkin(employee, latitude=12.9352, longitude=77.6245)
+		self.assertTrue(checkin.name)
+
+	def test_off_mode_allows_any_location(self):
+		frappe.db.set_single_value("HR Settings", "geofence_enforcement_mode", "Off")
+		frappe.db.set_single_value("HR Settings", "allow_geolocation_tracking", 0)
+		employee = make_employee("test_geofence_off@example.com", company="_Test Company")
+
+		# Should not raise when off
+		checkin = make_checkin(employee, latitude=0.0, longitude=0.0)
+		self.assertTrue(checkin.name)
