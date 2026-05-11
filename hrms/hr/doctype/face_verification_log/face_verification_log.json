@@ -13,6 +13,8 @@
   "match_result",
   "confidence",
   "liveness_passed",
+  "consumed",
+  "consumed_at",
   "section_break_1",
   "device_user_agent",
   "notes"
@@ -70,6 +72,20 @@
    "fieldname": "liveness_passed",
    "fieldtype": "Check",
    "label": "Liveness Passed"
+  },
+  {
+   "default": "0",
+   "fieldname": "consumed",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Consumed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "consumed_at",
+   "fieldtype": "Datetime",
+   "label": "Consumed At",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_1",

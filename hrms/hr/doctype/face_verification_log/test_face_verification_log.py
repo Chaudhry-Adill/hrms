@@ -157,3 +157,69 @@ class TestFaceVerificationLog(HRMSTestSuite):
 		)
 		# Should not raise.
 		validate_face_for_checkin(doc, method="validate")
+
+	def test_validate_face_consumes_log_and_rejects_reuse(self):
+		from hrms.api.face import validate_face_for_checkin, verify
+
+		hr_settings = frappe.get_single("HR Settings")
+		if not hasattr(hr_settings, "face_verification_mode"):
+			self.skipTest("face_verification_mode custom field not installed")
+		hr_settings.face_verification_mode = "Required"
+		hr_settings.save(ignore_permissions=True)
+
+		descriptor = _random_descriptor(seed=5)
+		self._set_descriptor(descriptor)
+		result = verify(
+			employee=self.employee,
+			descriptor_json=json.dumps(descriptor),
+			with_liveness=False,
+		)
+		self.assertTrue(result["matched"])
+		log_name = result["log_name"]
+
+		# First check-in should succeed and consume the log.
+		doc = frappe.get_doc(
+			{
+				"doctype": "Employee Checkin",
+				"employee": self.employee,
+				"log_type": "IN",
+				"time": frappe.utils.now_datetime(),
+				"face_verification_log": log_name,
+			}
+		)
+		validate_face_for_checkin(doc, method="validate")
+		consumed = frappe.db.get_value("Face Verification Log", log_name, "consumed")
+		self.assertEqual(int(consumed or 0), 1)
+
+		# Second check-in with same log should fail.
+		doc2 = frappe.get_doc(
+			{
+				"doctype": "Employee Checkin",
+				"employee": self.employee,
+				"log_type": "OUT",
+				"time": frappe.utils.now_datetime(),
+				"face_verification_log": log_name,
+			}
+		)
+		with self.assertRaises(frappe.ValidationError) as ctx:
+			validate_face_for_checkin(doc2, method="validate")
+		self.assertIn("already been used", str(ctx.exception))
+
+	def test_get_enrollment_status_unauthorized_returns_generic(self):
+		from hrms.api.face import get_enrollment_status
+
+		# Probing a non-existent employee should return the same generic response
+		# as an unauthorized request.
+		result = get_enrollment_status(employee="NONEXISTENT-EMP-99999")
+		self.assertEqual(result["status"], "Not Enrolled")
+		self.assertEqual(result["mode"], "Off")
+
+	def test_enroll_does_not_use_ignore_permissions(self):
+		from hrms.api.face import enroll
+
+		descriptor = _random_descriptor(seed=6)
+		# As Administrator we have write permission; the call should succeed
+		# without needing ignore_permissions.
+		enroll(employee=self.employee, descriptor_json=json.dumps(descriptor))
+		emp = frappe.get_doc("Employee", self.employee)
+		self.assertEqual(emp.face_enrollment_status, "Enrolled")

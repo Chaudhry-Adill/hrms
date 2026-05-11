@@ -96,17 +96,23 @@ def enroll(employee: str, descriptor_json: str) -> dict:
 
 	_check_self_or_hr(employee)
 
+	emp = frappe.get_doc("Employee", employee)
+	frappe.has_permission("Employee", doc=emp, ptype="write", throw=True)
+
 	descriptor = _parse_descriptor(descriptor_json)
 
-	emp = frappe.get_doc("Employee", employee)
 	# Custom fields (added in setup.py). Defensive in case install hasn't run.
 	if not hasattr(emp, "face_descriptor_json"):
 		frappe.throw(_("Face Detection custom fields are not installed on Employee."))
 
-	emp.face_descriptor_json = json.dumps(descriptor)
-	emp.face_enrollment_status = "Enrolled"
-	emp.flags.ignore_permissions = True
-	emp.save()
+	frappe.db.set_value(
+		"Employee",
+		employee,
+		{
+			"face_descriptor_json": json.dumps(descriptor),
+			"face_enrollment_status": "Enrolled",
+		},
+	)
 
 	return {"enrolled": True, "employee": employee}
 
@@ -130,6 +136,8 @@ def verify(employee: str, descriptor_json: str, with_liveness: bool | int = Fals
 	require_liveness = frappe.db.get_single_value("HR Settings", "face_require_liveness") or 0
 
 	# Coerce flag: frappe sometimes passes "0"/"1"/"true" strings via REST.
+	# NOTE: This flag is self-reported by the client and is advisory only.
+	# It does NOT constitute cryptographic proof of liveness.
 	liveness_passed = bool(int(with_liveness)) if str(with_liveness).isdigit() else bool(with_liveness)
 
 	matched = False
@@ -155,7 +163,6 @@ def verify(employee: str, descriptor_json: str, with_liveness: bool | int = Fals
 			"device_user_agent": (frappe.local.request.headers.get("User-Agent") if frappe.local.request else None),
 		}
 	)
-	log.flags.ignore_permissions = True
 	log.insert()
 
 	return {
@@ -166,12 +173,16 @@ def verify(employee: str, descriptor_json: str, with_liveness: bool | int = Fals
 
 
 @frappe.whitelist()
+@frappe.rate_limiter.rate_limit(key="ip", limit=30, seconds=60)
 def get_enrollment_status(employee: str) -> dict:
 	"""Return the enrollment state for the employee."""
 	if not employee:
-		frappe.throw(_("Employee is required."))
+		return {"status": "Not Enrolled", "mode": "Off"}
 
-	_check_self_or_hr(employee)
+	try:
+		_check_self_or_hr(employee)
+	except frappe.PermissionError:
+		return {"status": "Not Enrolled", "mode": "Off"}
 
 	status = frappe.db.get_value("Employee", employee, "face_enrollment_status") or "Not Enrolled"
 	mode = frappe.db.get_single_value("HR Settings", "face_verification_mode") or "Off"
@@ -215,7 +226,7 @@ def validate_face_for_checkin(doc: "EmployeeCheckin", method: str | None = None)
 	log = frappe.db.get_value(
 		"Face Verification Log",
 		log_name,
-		["match_result", "employee"],
+		["match_result", "employee", "consumed"],
 		as_dict=True,
 	)
 	if not log:
@@ -224,5 +235,11 @@ def validate_face_for_checkin(doc: "EmployeeCheckin", method: str | None = None)
 	if log.employee != doc.employee:
 		frappe.throw(_("Face Verification Log {0} does not belong to this employee.").format(log_name))
 
+	if log.consumed:
+		frappe.throw(_("Face Verification Log {0} has already been used.").format(log_name))
+
 	if log.match_result != "Pass":
 		frappe.throw(_("Face verification did not pass — please retry."))
+
+	# Mark log as single-use consumed
+	frappe.db.set_value("Face Verification Log", log_name, {"consumed": 1, "consumed_at": frappe.utils.now_datetime()})
