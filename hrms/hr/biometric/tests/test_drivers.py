@@ -78,10 +78,6 @@ class TestBiometricDrivers(HRMSTestSuite):
 			attendance_device_id="BIO-001",
 		)
 
-	def tearDown(self):
-		# HRMSTestSuite handles rollback; clean transient docs only.
-		pass
-
 	def _make_device(self, name="Test Device", **kwargs):
 		device = frappe.new_doc("Biometric Device")
 		device.device_name = name
