@@ -19,7 +19,6 @@ class TestEmployeeAssetRequest(HRMSTestSuite):
 	@classmethod
 	def setUpClass(cls) -> None:
 		super().setUpClass()
-		cls.make_employees()
 
 	def _get_employee(self) -> str:
 		return frappe.get_all("Employee", filters={"status": "Active"}, limit=1)[0].name
@@ -265,3 +264,45 @@ class TestEmployeeAssetRequest(HRMSTestSuite):
 		self.assertEqual(req.status, "Open")
 		self.assertEqual(req.request_type, "New")
 		self.assertEqual(req.employee, employee)
+
+	def test_invalid_status_transition_blocked(self):
+		"""Illegal status jumps should raise ValidationError."""
+		employee = self._get_employee()
+		req = frappe.get_doc(
+			{
+				"doctype": "Employee Asset Request",
+				"employee": employee,
+				"request_date": today(),
+				"request_type": "New",
+				"status": "Open",
+			}
+		).insert()
+		req.submit()
+
+		req.db_set("status", "Returned")
+		with self.assertRaises(frappe.ValidationError):
+			req.run_method("on_update_after_submit")
+
+	def test_valid_status_transitions_allowed(self):
+		"""Allowed transitions should not raise."""
+		employee = self._get_employee()
+		req = frappe.get_doc(
+			{
+				"doctype": "Employee Asset Request",
+				"employee": employee,
+				"request_date": today(),
+				"request_type": "New",
+				"status": "Open",
+			}
+		).insert()
+		req.submit()
+
+		# Open → Approved
+		req.db_set("status", "Approved")
+		req.run_method("on_update_after_submit")
+		self.assertEqual(req.status, "Approved")
+
+		# Approved → Allocated (simulated by direct db_set; allocation logic tested elsewhere)
+		req.db_set("status", "Allocated")
+		req.run_method("on_update_after_submit")
+		self.assertEqual(req.status, "Allocated")

@@ -61,6 +61,14 @@ class EmployeeAssetRequest(Document):
 		if previous_status == self.status:
 			return
 
+		allowed_transitions = {
+			"Open": {"Approved", "Rejected"},
+			"Approved": {"Allocated"},
+			"Allocated": {"Returned"},
+		}
+		if previous_status not in allowed_transitions or self.status not in allowed_transitions.get(previous_status, set()):
+			frappe.throw(_("Invalid status transition from {0} to {1}").format(previous_status, self.status))
+
 		if self.status == "Approved" and self.request_type == "New":
 			self._create_allocation_for_approved_request()
 

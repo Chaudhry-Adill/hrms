@@ -53,11 +53,12 @@ def acknowledge_allocation(allocation: str) -> dict:
 	doc = frappe.get_doc("Employee Asset Allocation", allocation)
 
 	current_emp = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
-	if current_emp != doc.employee and "HR Manager" not in frappe.get_roles():
-		frappe.throw(_("You can only acknowledge your own allocations."))
+	if current_emp != doc.employee:
+		frappe.has_permission("Employee Asset Allocation", doc=doc, ptype="write", throw=True)
 
-	doc.db_set("acknowledgement", 1)
-	doc.db_set("acknowledgement_at", now_datetime())
+	doc.acknowledgement = 1
+	doc.acknowledgement_at = now_datetime()
+	doc.save()
 
 	return {
 		"name": doc.name,
@@ -94,7 +95,7 @@ def request_return(allocation: str, reason: str | None = None) -> dict:
 			"status": "Open",
 		}
 	)
-	doc.insert(ignore_permissions=True)
+	doc.insert()
 	return {"name": doc.name, "status": doc.status}
 
 
@@ -161,7 +162,6 @@ def list_my_requests(status: str | None = None) -> list[dict]:
 	)
 
 
-@frappe.whitelist()
 def generate_return_requests_for_employee(
 	employee: str,
 	due_date: str | None = None,
