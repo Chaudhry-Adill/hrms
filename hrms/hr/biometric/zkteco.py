@@ -58,6 +58,9 @@ class ZKTecoDriver(Driver):
 		except Exception:
 			pass
 
+		if password is not None and str(password).strip() != "" and not str(password).isdigit():
+			raise Exception("ZK password must be numeric")
+
 		try:
 			self.zk = ZK(
 				host,

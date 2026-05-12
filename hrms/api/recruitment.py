@@ -48,6 +48,7 @@ def bulk_update_status(applicants: list | str, status: str, note: str | None = N
 	return {"updated": updated, "skipped": skipped}
 
 
+@frappe.rate_limiter.rate_limit(key="ip", limit=20, seconds=60)
 @frappe.whitelist(allow_guest=True)
 def get_candidate_timeline(token: str) -> dict:
 	"""Guest-readable, sanitized timeline for an applicant via opaque token.
