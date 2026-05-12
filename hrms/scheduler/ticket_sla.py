@@ -22,29 +22,49 @@ def escalate_breached_slas() -> int:
 	to the department head if `assigned_team` is set. Designed to run hourly.
 	Returns the count of tickets escalated for observability.
 	"""
-	tickets = frappe.get_all(
-		"HR Ticket",
-		filters={
-			"sla_due_at": ["<", now_datetime()],
-			"status": ["not in", TERMINAL_STATUSES],
-		},
-		fields=["name", "priority", "assigned_team", "subject", "raised_by"],
+	Ticket = frappe.qb.DocType("HR Ticket")
+	tickets = (
+		frappe.qb.from_(Ticket)
+		.select(Ticket.name, Ticket.priority, Ticket.assigned_team, Ticket.subject, Ticket.raised_by)
+		.where(
+			(Ticket.sla_due_at < now_datetime())
+			& (Ticket.status.notin(TERMINAL_STATUSES))
+			& (Ticket.sla_escalated_at.isnull() | (Ticket.sla_escalated_at < Ticket.sla_due_at))
+		)
+		.run(as_dict=True)
 	)
 
 	escalated = 0
 	for ticket in tickets:
-		new_priority = _bump_priority(ticket.priority)
-		if new_priority != ticket.priority:
-			frappe.db.set_value(
-				"HR Ticket",
-				ticket.name,
-				"priority",
-				new_priority,
-				update_modified=False,
-			)
+		try:
+			new_priority = _bump_priority(ticket.priority)
+			if new_priority != ticket.priority:
+				frappe.db.set_value(
+					"HR Ticket",
+					ticket.name,
+					{
+						"priority": new_priority,
+						"sla_escalated_at": now_datetime(),
+					},
+					update_modified=False,
+				)
+			else:
+				# Even if priority doesn't change, mark as escalated to prevent duplicate runs
+				frappe.db.set_value(
+					"HR Ticket",
+					ticket.name,
+					"sla_escalated_at",
+					now_datetime(),
+					update_modified=False,
+				)
 
-		_notify_department_head(ticket, new_priority)
-		escalated += 1
+			_notify_department_head(ticket, new_priority)
+			escalated += 1
+		except Exception:
+			frappe.log_error(
+				title="HR Ticket SLA escalation failed",
+				message=frappe.get_traceback(),
+			)
 
 	if escalated:
 		frappe.db.commit()  # noqa: scheduler context, not test
