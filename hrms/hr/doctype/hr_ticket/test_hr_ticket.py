@@ -169,3 +169,21 @@ class TestHRTicket(HRMSTestSuite):
 			for call in mock_notify.call_args_list
 		)
 		self.assertFalse(called_for_self)
+
+	def test_escalation_is_idempotent(self):
+		ticket = self._new_ticket(priority="Low")
+		past = add_to_date(now_datetime(), hours=-1)
+		frappe.db.set_value("HR Ticket", ticket.name, "sla_due_at", past)
+
+		with patch("hrms.scheduler.ticket_sla._notify_department_head") as mock_notify:
+			count_first = escalate_breached_slas()
+			count_second = escalate_breached_slas()
+
+		self.assertGreaterEqual(count_first, 1)
+		self.assertEqual(count_second, 0)
+		ticket.reload()
+		self.assertEqual(ticket.priority, "Medium")
+		self.assertIsNotNone(ticket.sla_escalated_at)
+		mock_notify.assert_called()
+		# Second run should not trigger additional notifications
+		self.assertEqual(mock_notify.call_count, 1)

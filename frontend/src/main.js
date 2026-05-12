@@ -117,12 +117,14 @@ router.beforeEach(async (to, _, next) => {
 		isLoggedIn = false
 	}
 
+	const requiresAuth = to.matched.some((record) => record.meta?.requiresAuth)
+
 	if (!isLoggedIn) {
 		// password reset page is outside the PWA scope
 		if (to.path === "/update-password") {
 			return next(false)
-		} else if (to.name !== "Login") {
-			next({ name: "Login" })
+		} else if (requiresAuth || to.name !== "Login") {
+			return next({ name: "Login" })
 		}
 	}
 

@@ -99,6 +99,12 @@
    "read_only": 1
   },
   {
+   "fieldname": "sla_escalated_at",
+   "fieldtype": "Datetime",
+   "label": "SLA Escalated At",
+   "read_only": 1
+  },
+  {
    "fieldname": "first_response_at",
    "fieldtype": "Datetime",
    "label": "First Response At",
@@ -215,8 +221,7 @@
    "report": 1,
    "role": "Employee",
    "select": 1,
-   "share": 1,
-   "write": 1
+   "share": 1
   }
  ],
  "row_format": "Dynamic",

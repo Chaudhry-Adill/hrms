@@ -339,6 +339,9 @@ def add_log_based_on_employee_field(
 	:longitude: (optional) Longitude of the shift location.
 	"""
 
+	if not frappe.has_permission("Employee Checkin", ptype="create"):
+		frappe.throw(_("Not permitted to create Employee Checkin logs."), frappe.PermissionError)
+
 	if not employee_field_value or not timestamp:
 		frappe.throw(_("'employee_field_value' and 'timestamp' are required."))
 

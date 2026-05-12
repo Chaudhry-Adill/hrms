@@ -13,6 +13,8 @@
   "match_result",
   "confidence",
   "liveness_passed",
+  "consumed",
+  "consumed_at",
   "section_break_1",
   "device_user_agent",
   "notes"
@@ -72,6 +74,20 @@
    "label": "Liveness Passed"
   },
   {
+   "default": "0",
+   "fieldname": "consumed",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Consumed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "consumed_at",
+   "fieldtype": "Datetime",
+   "label": "Consumed At",
+   "read_only": 1
+  },
+  {
    "fieldname": "section_break_1",
    "fieldtype": "Section Break"
   },
@@ -112,15 +128,13 @@
   },
   {
    "create": 1,
-   "delete": 1,
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "HR Manager",
-   "share": 1,
-   "write": 1
+   "share": 1
   },
   {
    "create": 1,
@@ -130,8 +144,7 @@
    "read": 1,
    "report": 1,
    "role": "HR User",
-   "share": 1,
-   "write": 1
+   "share": 1
   },
   {
    "if_owner": 1,
