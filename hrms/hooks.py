@@ -217,9 +217,6 @@ doc_events = {
 	},
 	"Project": {"validate": "hrms.controllers.employee_boarding_controller.update_employee_boarding_status"},
 	"Task": {"on_update": "hrms.controllers.employee_boarding_controller.update_task"},
-	"Asset Movement": {
-		"on_submit": "hrms.api.assets._on_asset_movement_submit",
-	},
 	"Employee Checkin": {
 		"validate": [
 			"hrms.api.face.validate_face_for_checkin",

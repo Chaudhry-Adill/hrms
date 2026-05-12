@@ -326,5 +326,3 @@ class TestAttendance(HRMSTestSuite):
 		attendance_records = frappe.get_all("Attendance", {"employee": employee2})
 		self.assertEqual(len(attendance_records), 1)
 
-	def tearDown(self):
-		frappe.db.rollback()

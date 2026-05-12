@@ -133,8 +133,9 @@ class EmployeeAssetAllocation(Document):
 	def acknowledge(self):
 		"""Mark this allocation as acknowledged by the assigned employee."""
 		current_user_emp = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
-		if current_user_emp != self.employee and "HR Manager" not in frappe.get_roles():
-			frappe.throw(_("You can only acknowledge your own allocations."))
+		if current_user_emp != self.employee:
+			frappe.has_permission("Employee Asset Allocation", doc=self, ptype="write", throw=True)
 
-		self.db_set("acknowledgement", 1)
-		self.db_set("acknowledgement_at", now_datetime())
+		self.acknowledgement = 1
+		self.acknowledgement_at = frappe.utils.now_datetime()
+		self.save()

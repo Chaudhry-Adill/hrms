@@ -131,12 +131,14 @@
    "label": "Acknowledgement"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
    "fieldname": "acknowledgement",
    "fieldtype": "Check",
    "label": "Acknowledged"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "acknowledgement_at",
    "fieldtype": "Datetime",
    "label": "Acknowledged At",

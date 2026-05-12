@@ -104,8 +104,8 @@ class TestEmployeeAssetRequest(HRMSTestSuite):
 		req.submit()
 
 		# Flip status to Approved — triggers on_update_after_submit
-		req.db_set("status", "Approved")
-		req.run_method("on_update_after_submit")
+		req.status = "Approved"
+		req.save()
 
 		req.reload()
 
@@ -147,8 +147,8 @@ class TestEmployeeAssetRequest(HRMSTestSuite):
 		).insert()
 		req.submit()
 
-		req.db_set("status", "Approved")
-		req.run_method("on_update_after_submit")
+		req.status = "Approved"
+		req.save()
 
 		alloc_name = frappe.get_all(
 			"Employee Asset Allocation", filters={"request": req.name}, limit=1
@@ -183,8 +183,8 @@ class TestEmployeeAssetRequest(HRMSTestSuite):
 			}
 		).insert()
 		req.submit()
-		req.db_set("status", "Approved")
-		req.run_method("on_update_after_submit")
+		req.status = "Approved"
+		req.save()
 
 		alloc_name = frappe.get_all(
 			"Employee Asset Allocation", filters={"request": req.name}, limit=1
@@ -279,9 +279,9 @@ class TestEmployeeAssetRequest(HRMSTestSuite):
 		).insert()
 		req.submit()
 
-		req.db_set("status", "Returned")
+		req.status = "Returned"
 		with self.assertRaises(frappe.ValidationError):
-			req.run_method("on_update_after_submit")
+			req.save()
 
 	def test_valid_status_transitions_allowed(self):
 		"""Allowed transitions should not raise."""
@@ -298,11 +298,11 @@ class TestEmployeeAssetRequest(HRMSTestSuite):
 		req.submit()
 
 		# Open → Approved
-		req.db_set("status", "Approved")
-		req.run_method("on_update_after_submit")
+		req.status = "Approved"
+		req.save()
 		self.assertEqual(req.status, "Approved")
 
 		# Approved → Allocated (simulated by direct db_set; allocation logic tested elsewhere)
-		req.db_set("status", "Allocated")
-		req.run_method("on_update_after_submit")
+		req.status = "Allocated"
+		req.save()
 		self.assertEqual(req.status, "Allocated")

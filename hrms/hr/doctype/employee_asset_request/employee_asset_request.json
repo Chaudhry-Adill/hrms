@@ -94,6 +94,7 @@
    "options": "Low\nNormal\nHigh"
   },
   {
+   "allow_on_submit": 1,
    "default": "Open",
    "fieldname": "status",
    "fieldtype": "Select",
