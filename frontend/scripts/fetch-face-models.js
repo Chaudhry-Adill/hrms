@@ -31,7 +31,9 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const OUT_DIR = path.resolve(__dirname, "..", "public", "face-models")
-const BASE = "https://raw.githubusercontent.com/vladmandic/face-api/master/model"
+// Pinned to a specific commit SHA so builds are reproducible and not
+// vulnerable to a compromise of the master branch.
+const BASE = "https://raw.githubusercontent.com/vladmandic/face-api/189226d63aabb48cb40776fd1c453ebc0fa722f1/model"
 
 const FILES = [
 	"tiny_face_detector_model-weights_manifest.json",

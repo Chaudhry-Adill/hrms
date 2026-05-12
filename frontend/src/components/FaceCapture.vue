@@ -113,7 +113,6 @@ function eyeAspectRatio(eye) {
 
 async function loop() {
 	if (captured || !videoEl.value || !modelsLoaded) {
-		rafId = requestAnimationFrame(loop)
 		return
 	}
 
@@ -207,5 +206,16 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
 	stopCamera()
+	if (faceapi) {
+		try {
+			faceapi.nets.tinyFaceDetector.dispose?.()
+			faceapi.nets.faceLandmark68Net.dispose?.()
+			faceapi.nets.faceRecognitionNet.dispose?.()
+		} catch (_) {
+			// ignore disposal errors on unmount
+		}
+		faceapi = null
+		modelsLoaded = false
+	}
 })
 </script>

@@ -38,6 +38,7 @@
 		trigger="open-checkin-modal"
 		:initial-breakpoint="1"
 		:breakpoints="[0, 1]"
+		@didDismiss="handleModalDismiss"
 	>
 		<div class="h-120 w-full flex flex-col items-center justify-center gap-5 p-4 mb-5">
 			<div class="flex flex-col gap-1.5 mt-2 items-center justify-center">
@@ -83,7 +84,9 @@
 						marginheight="0"
 						marginwidth="0"
 						style="border: 0"
-						:src="`https://maps.google.com/maps?q=${latitude},${longitude}&hl=en&z=15&amp;output=embed`"
+						referrerpolicy="no-referrer"
+						sandbox="allow-scripts"
+						:src="`https://maps.google.com/maps?q=${latitude},${longitude}&hl=en&z=15&output=embed`"
 					>
 					</iframe>
 				</div>
@@ -91,6 +94,7 @@
 
 			<template v-if="faceMode === 'Required'">
 				<FaceCapture
+					ref="faceCaptureRef"
 					:auto-start="true"
 					:require-liveness="faceRequireLiveness"
 					@captured="onFaceCaptured"
@@ -236,6 +240,7 @@ const faceRequireLiveness = computed(() => !!faceConfig.data?.require_liveness)
 const faceVerificationLog = ref(null)
 const faceMatched = ref(false)
 const faceError = ref("")
+const faceCaptureRef = ref(null)
 
 const faceBlocksSubmit = computed(() => {
 	if (faceMode.value !== "Required") return false
@@ -297,6 +302,10 @@ const handleEmployeeCheckin = () => {
 	}
 }
 
+const handleModalDismiss = () => {
+	faceCaptureRef.value?.stop?.()
+}
+
 const submitLog = (logType) => {
 	const actionLabel = logType === "IN" ? __("Check-in") : __("Check-out")
 
@@ -337,7 +346,7 @@ const submitLog = (logType) => {
 					})
 				}
 			},
-		}
+		},
 	)
 }
 
