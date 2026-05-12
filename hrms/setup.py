@@ -882,6 +882,7 @@ def get_user_types_data():
 				"Employee Referral": ["read", "write", "create", "delete"],
 				"Travel Request": ["read", "write", "create", "delete"],
 				"Employee Asset Request": ["read", "write", "create"],
+				"Employee Asset Allocation": ["read", "write"],
 				"HR Ticket": ["read", "write", "create"],
 				"HR FAQ": ["read"],
 			},

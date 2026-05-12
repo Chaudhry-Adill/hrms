@@ -17,6 +17,7 @@
   "assigned_team",
   "column_break_9",
   "sla_due_at",
+  "sla_escalated_at",
   "first_response_at",
   "resolved_at",
   "details_section",
