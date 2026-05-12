@@ -46,15 +46,28 @@ def create_ticket(
 	if attachments:
 		if isinstance(attachments, str):
 			attachments = frappe.parse_json(attachments)
-		for file_url in attachments or []:
-			frappe.get_doc(
-				{
-					"doctype": "File",
-					"file_url": file_url,
-					"attached_to_doctype": doc.doctype,
-					"attached_to_name": doc.name,
-				}
-			).insert(ignore_permissions=True)
+		attachments = attachments or []
+		if len(attachments) > 10:
+			frappe.throw(_("You can attach up to 10 files per ticket."))
+		for file_url in attachments:
+			file_meta = frappe.db.get_value(
+				"File",
+				{"file_url": file_url},
+				["name", "owner", "attached_to_name"],
+				as_dict=True,
+			)
+			if not file_meta:
+				frappe.throw(_("File {0} not found.").format(file_url))
+			if file_meta.owner != frappe.session.user:
+				frappe.throw(_("You can only attach files you uploaded."))
+			if file_meta.attached_to_name:
+				frappe.throw(
+					_("File {0} is already attached to another document.").format(file_url)
+				)
+			file_doc = frappe.get_doc("File", file_meta.name)
+			file_doc.attached_to_doctype = doc.doctype
+			file_doc.attached_to_name = doc.name
+			file_doc.save()
 
 	return {
 		"name": doc.name,
@@ -101,41 +114,19 @@ def list_my_tickets(status_filter: str | None = None) -> list[dict]:
 @frappe.whitelist()
 def search_faq(query: str = "", category: str | None = None) -> list[dict]:
 	"""Top 5 published FAQs matching the query, weighted by views."""
-	if not query and not category:
-		# Return top viewed FAQs as default
-		filters = {"published": 1}
-		if category:
-			filters["category"] = category
-		return frappe.get_all(
-			"HR FAQ",
-			filters=filters,
-			fields=["name", "title", "category", "views"],
-			order_by="views desc",
-			limit=5,
-		)
-
-	conditions = ["published = 1"]
-	values: dict = {}
-	if query:
-		conditions.append("(title LIKE %(q)s OR body LIKE %(q)s)")
-		values["q"] = f"%{query}%"
-	if category:
-		conditions.append("category = %(category)s")
-		values["category"] = category
-
-	where = " AND ".join(conditions)
-	rows = frappe.db.sql(
-		f"""
-		SELECT name, title, category, views
-		FROM `tabHR FAQ`
-		WHERE {where}
-		ORDER BY views DESC, modified DESC
-		LIMIT 5
-		""",
-		values,
-		as_dict=True,
+	FAQ = frappe.qb.DocType("HR FAQ")
+	q = (
+		frappe.qb.from_(FAQ)
+		.select(FAQ.name, FAQ.title, FAQ.category, FAQ.views)
+		.where(FAQ.published == 1)
 	)
-	return rows
+
+	if query:
+		q = q.where((FAQ.title.like(f"%{query}%")) | (FAQ.body.like(f"%{query}%")))
+	if category:
+		q = q.where(FAQ.category == category)
+
+	return q.orderby(FAQ.views, order=frappe.qb.desc).orderby(FAQ.modified, order=frappe.qb.desc).limit(5).run(as_dict=True)
 
 
 @frappe.whitelist()
