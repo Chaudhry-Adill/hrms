@@ -64,7 +64,7 @@ class TestEmployeeSeparation(HRMSTestSuite):
 		# At least one ToDo should exist for the task — routing engaged.
 		todos = frappe.get_all("ToDo", filters={"reference_type": "Task", "reference_name": task})
 		self.assertGreater(len(todos), 0)
-		self.assertTrue(todos[0].owner)
+		self.assertEqual(todos[0].owner, dept_head_user)
 
 	def test_is_exit_interview_creates_draft(self):
 		employee = frappe.db.get_value("Employee", {"status": "Active", "company": "_Test Company"})

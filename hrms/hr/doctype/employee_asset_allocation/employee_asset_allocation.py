@@ -33,7 +33,7 @@ class EmployeeAssetAllocation(Document):
 		expected_return_date: DF.Date | None
 		from_date: DF.Date
 		issue_movement: DF.Link | None
-		naming_series: DF.Data | None
+		naming_series: DF.Literal["EAA-.YYYY.-.#####"] | None
 		request: DF.Link | None
 		return_movement: DF.Link | None
 	# end: auto-generated types

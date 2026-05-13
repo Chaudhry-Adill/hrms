@@ -30,7 +30,7 @@ def _stub_employee(name="EMP-FACE-0001"):
 			"status": "Active",
 		}
 	)
-	doc.insert(ignore_permissions=True, ignore_mandatory=True)
+	doc.insert(ignore_mandatory=True)
 	return doc.name
 
 
@@ -52,14 +52,14 @@ class TestFaceVerificationLog(HRMSTestSuite):
 			hr_settings.face_verification_mode = "Off"
 			hr_settings.face_min_confidence = 0.6
 			hr_settings.face_require_liveness = 0
-			hr_settings.save(ignore_permissions=True)
+			hr_settings.save()
 
 	def _set_descriptor(self, descriptor):
 		emp = frappe.get_doc("Employee", self.employee)
 		if hasattr(emp, "face_descriptor_json"):
 			emp.face_descriptor_json = json.dumps(descriptor)
 			emp.face_enrollment_status = "Enrolled"
-			emp.save(ignore_permissions=True)
+			emp.save()
 
 	def test_enroll_stores_descriptor_and_flips_status(self):
 		from hrms.api.face import enroll
@@ -124,7 +124,7 @@ class TestFaceVerificationLog(HRMSTestSuite):
 		if not hasattr(hr_settings, "face_verification_mode"):
 			self.skipTest("face_verification_mode custom field not installed")
 		hr_settings.face_verification_mode = "Required"
-		hr_settings.save(ignore_permissions=True)
+		hr_settings.save()
 
 		doc = frappe.get_doc(
 			{
@@ -145,7 +145,7 @@ class TestFaceVerificationLog(HRMSTestSuite):
 		if not hasattr(hr_settings, "face_verification_mode"):
 			self.skipTest("face_verification_mode custom field not installed")
 		hr_settings.face_verification_mode = "Off"
-		hr_settings.save(ignore_permissions=True)
+		hr_settings.save()
 
 		doc = frappe.get_doc(
 			{
@@ -165,7 +165,7 @@ class TestFaceVerificationLog(HRMSTestSuite):
 		if not hasattr(hr_settings, "face_verification_mode"):
 			self.skipTest("face_verification_mode custom field not installed")
 		hr_settings.face_verification_mode = "Required"
-		hr_settings.save(ignore_permissions=True)
+		hr_settings.save()
 
 		descriptor = _random_descriptor(seed=5)
 		self._set_descriptor(descriptor)

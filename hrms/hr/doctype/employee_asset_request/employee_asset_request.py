@@ -52,6 +52,25 @@ class EmployeeAssetRequest(Document):
 			# Allowed at draft, but warn — return requests are normally created with the asset link
 			pass
 
+		self._validate_status_transition()
+
+	def _validate_status_transition(self):
+		if self.is_new():
+			return
+
+		previous = frappe.db.get_value(self.doctype, self.name, "status")
+		if previous == self.status:
+			return
+
+		allowed_transitions = {
+			"Open": {"Approved", "Rejected"},
+			"Approved": {"Allocated"},
+			"Allocated": {"Returned"},
+		}
+
+		if previous not in allowed_transitions or self.status not in allowed_transitions.get(previous, set()):
+			frappe.throw(_("Invalid status transition from {0} to {1}").format(previous, self.status))
+
 	def on_update_after_submit(self):
 		"""Drive lifecycle: Approved → create allocation, Allocated → set links, Returned → stamp date."""
 		# Capture previous values from DB to detect transitions
